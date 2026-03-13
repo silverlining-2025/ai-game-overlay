@@ -1,0 +1,16 @@
+@echo off
+echo [AI Game Overlay] Starting all services...
+echo.
+echo Starting backend in new window...
+start "AI Overlay Backend" cmd /c "%~dp0start_backend.bat"
+
+echo Waiting 3 seconds for backend to initialize...
+timeout /t 3 /nobreak >nul
+
+echo Starting frontend in new window...
+start "AI Overlay Frontend" cmd /c "%~dp0start_frontend.bat"
+
+echo.
+echo Both services starting. Check the opened windows for status.
+echo Press any key to exit this launcher...
+pause >nul

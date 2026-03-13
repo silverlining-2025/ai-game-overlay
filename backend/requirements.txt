@@ -1,0 +1,18 @@
+# Core CV
+opencv-python
+numpy
+Pillow
+
+# Screen capture
+mss
+dxcam
+
+# OCR
+easyocr
+
+# WebSocket server
+websockets
+
+# Testing
+pytest
+pytest-asyncio
