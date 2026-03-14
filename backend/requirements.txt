@@ -10,6 +10,11 @@ dxcam
 # OCR
 easyocr
 
+# VLM (Moondream2)
+transformers>=4.44,<5
+torch
+accelerate
+
 # WebSocket server
 websockets
 

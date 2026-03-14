@@ -64,12 +64,24 @@ class MapleStoryConfig:
 
 
 @dataclass
+class MoondreamConfig:
+    """Config for Moondream2 local VLM."""
+    model_id: str = "vikhyatk/moondream2"
+    device: str = "cuda"
+    revision: str | None = None
+    query_interval: float = 3.0  # seconds between periodic queries
+    default_prompt: str = "Describe what is happening in this game screenshot. Focus on the player's status, any dangers, and important UI elements."
+    locale: str = "ko"
+
+
+@dataclass
 class AIConfig:
     """Config for AI model integration."""
     gemini_api_key: str = field(default_factory=lambda: os.environ.get("GEMINI_API_KEY", ""))
     gemini_model: str = "gemini-2.0-flash"
     temperature: float = 0.3
     locale: str = "ko"
+    moondream: MoondreamConfig = field(default_factory=MoondreamConfig)
 
 
 # --- Active game configs ---

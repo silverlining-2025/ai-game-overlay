@@ -24,6 +24,7 @@ class OverlayServer:
         self.clients: set[WebSocketServerProtocol] = set()
         self._config_callback: Any = None
         self._region_callback: Any = None
+        self._suggestion_callback: Any = None
 
     def on_config(self, callback: Any) -> None:
         """Register handler for config messages from frontend."""
@@ -32,6 +33,10 @@ class OverlayServer:
     def on_set_region(self, callback: Any) -> None:
         """Register handler for set_region messages from frontend."""
         self._region_callback = callback
+
+    def on_request_suggestion(self, callback: Any) -> None:
+        """Register handler for request_suggestion messages from frontend."""
+        self._suggestion_callback = callback
 
     async def broadcast(self, message: dict) -> None:
         """Send a message to all connected clients."""
@@ -84,6 +89,8 @@ class OverlayServer:
                         self._config_callback(data)
                     elif msg_type == "set_region" and self._region_callback:
                         self._region_callback(data)
+                    elif msg_type == "request_suggestion" and self._suggestion_callback:
+                        self._suggestion_callback(data)
                     else:
                         logger.warning("Unknown message type: %s", msg_type)
                 except json.JSONDecodeError:
