@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { AppConfig, CompanionReaction } from "../types";
-import CharacterAvatar from "../components/CharacterAvatar";
+import CharacterAvatar, { detectDetailedMood } from "../components/CharacterAvatar";
 import "./OverlayScreen.css";
 
 interface Props {
@@ -14,6 +14,8 @@ export default function OverlayScreen({ config }: Props) {
   const [showBubble, setShowBubble] = useState(true);
   const [connected, setConnected] = useState(false);
   const [, setHistory] = useState<CompanionReaction[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [detailedMood, setDetailedMood] = useState("chill");
   const bubbleTimer = useRef<number | null>(null);
   const typewriterRef = useRef<number | null>(null);
 
@@ -88,12 +90,14 @@ export default function OverlayScreen({ config }: Props) {
         setReaction(r);
         setIsThinking(false);
         setShowBubble(true);
+        setDetailedMood(detectDetailedMood(r.text));
+        setIsSpeaking(true);
 
         // Add to history
         setHistory((prev) => [r, ...prev].slice(0, 5));
 
-        // Typewriter effect
-        typewriteText(r.text);
+        // Typewriter effect — mark speaking done when finished
+        typewriteText(r.text, () => setIsSpeaking(false));
 
         // Auto-hide bubble after 8 seconds
         if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
@@ -127,7 +131,7 @@ export default function OverlayScreen({ config }: Props) {
     };
   }, []);
 
-  function typewriteText(text: string) {
+  function typewriteText(text: string, onDone?: () => void) {
     if (typewriterRef.current) clearInterval(typewriterRef.current);
     let i = 0;
     setDisplayText("");
@@ -137,6 +141,7 @@ export default function OverlayScreen({ config }: Props) {
         setDisplayText(text.substring(0, i));
       } else {
         if (typewriterRef.current) clearInterval(typewriterRef.current);
+        if (onDone) onDone();
       }
     }, 22);
   }
@@ -196,7 +201,8 @@ export default function OverlayScreen({ config }: Props) {
         <div className="avatar-container" onClick={() => setShowBubble(!showBubble)}>
           <CharacterAvatar
             character={config.character}
-            mood={isThinking ? "thinking" : (reaction?.mood || "chill")}
+            mood={isThinking ? "thinking" : detailedMood as any}
+            isSpeaking={isSpeaking}
           />
         </div>
 

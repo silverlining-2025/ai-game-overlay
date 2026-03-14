@@ -365,8 +365,13 @@ def main() -> None:
                     user_content.append({"type": "text", "text": "[좌하단 UI 확대]"})
                     user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": ui_b64}})
 
-                # Fast-game context: minimal history, focus on NOW
-                instruction = "지금 이 순간만 봐. 이전 일은 잊어. 화면에 보이는 것만 반응해. 같은 말 반복 금지."
+                # Fast-game context: event-focused, ignore static UI
+                instruction = (
+                    "이전 화면과 비교해서 변화/이벤트에만 반응해. "
+                    "항상 있는 UI(HP바, 아이콘, 퀵슬롯)는 묘사 금지 — 변화가 생겼을 때만. "
+                    "아무 변화 없으면 게임 관련 자연스러운 잡담. "
+                    "같은 말 반복 금지."
+                )
                 if history:
                     history_text = "\n".join(f"- {h}" for h in history)
                     user_content.append({"type": "text", "text": f"직전 반응 (반복 방지용):\n{history_text}\n\n{instruction}"})

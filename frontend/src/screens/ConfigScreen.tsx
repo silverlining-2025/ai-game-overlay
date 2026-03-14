@@ -3,6 +3,7 @@ import type { AppConfig } from "../types";
 import "./ConfigScreen.css";
 
 const CHARACTERS = [
+  { id: "nozomi" as const, emoji: "\u{1F466}", label: "노조미" },
   { id: "robot" as const, emoji: "\u{1F916}", label: "로봇" },
   { id: "cat" as const, emoji: "\u{1F431}", label: "고양이" },
   { id: "ghost" as const, emoji: "\u{1F47B}", label: "유령" },
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export default function ConfigScreen({ onStart }: Props) {
-  const [character, setCharacter] = useState<AppConfig["character"]>("robot");
+  const [character, setCharacter] = useState<AppConfig["character"]>("nozomi");
   const [game, setGame] = useState<AppConfig["game"]>("maplestory");
   const [interval, setInterval_] = useState(3);
   const [position, setPosition] = useState<AppConfig["position"]>("top-right");

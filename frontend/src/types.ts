@@ -1,6 +1,6 @@
 export interface AppConfig {
   game: "maplestory" | "palworld" | "general";
-  character: "robot" | "cat" | "ghost" | "fox" | "slime";
+  character: "nozomi" | "robot" | "cat" | "ghost" | "fox" | "slime";
   interval: number;
   position: "top-right" | "top-left" | "bottom-right" | "bottom-left";
 }
