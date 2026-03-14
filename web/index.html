@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Gaming Companion</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #08080f;
+    font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    color: #e8e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* --- Setup Screen --- */
+  .setup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 24px;
+    padding: 40px;
+    max-width: 520px;
+    text-align: center;
+  }
+  .setup h1 {
+    font-size: 32px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #c084fc, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .setup p { color: #8888aa; font-size: 14px; line-height: 1.7; }
+
+  .setup select, .setup input {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 2px solid #2a2a4a;
+    background: #13132b;
+    color: #e8e8f0;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .setup select:focus, .setup input:focus { border-color: #6d28d9; }
+  .setup label { font-size: 13px; color: #6666aa; align-self: flex-start; margin-bottom: -16px; }
+
+  .btn-start {
+    padding: 14px 40px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, #6d28d9, #4f46e5);
+    color: white;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    font-family: inherit;
+    margin-top: 8px;
+  }
+  .btn-start:hover { transform: scale(1.04); box-shadow: 0 0 30px rgba(109, 40, 217, 0.4); }
+  .btn-start:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .cost-note { font-size: 11px; color: #555577; }
+
+  /* --- Live Screen --- */
+  .live { display: none; width: 100%; max-width: 900px; padding: 20px; }
+  .live.active { display: block; }
+
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .top-bar .title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #c084fc;
+  }
+  .top-bar .stats {
+    font-size: 12px;
+    color: #4a4a6a;
+    display: flex;
+    gap: 16px;
+  }
+  .top-bar .cost { color: #22c55e; font-weight: 700; }
+
+  .btn-stop {
+    padding: 6px 16px;
+    border-radius: 8px;
+    border: 1px solid #dc2626;
+    background: transparent;
+    color: #dc2626;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s;
+  }
+  .btn-stop:hover { background: #dc2626; color: white; }
+
+  .screen-preview {
+    width: 100%;
+    border-radius: 12px;
+    border: 2px solid #1a1a2e;
+    margin-bottom: 16px;
+    background: #0a0a15;
+    display: block;
+  }
+
+  .companion {
+    border: 3px solid #6d28d9;
+    border-radius: 16px;
+    background: #13132b;
+    padding: 20px 24px;
+    box-shadow: 0 0 40px rgba(109, 40, 217, 0.2);
+    transition: border-color 0.3s, box-shadow 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .companion.flash {
+    border-color: #a855f7;
+    box-shadow: 0 0 60px rgba(168, 85, 247, 0.5);
+  }
+  .companion.thinking { border-color: #3b3b5c; }
+
+  .face {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 36px;
+    font-weight: bold;
+    color: #c084fc;
+    margin-bottom: 6px;
+    transition: transform 0.2s;
+  }
+  .face.bounce { animation: bounce 0.4s ease; }
+  @keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+
+  .speech {
+    font-size: 17px;
+    line-height: 1.7;
+    min-height: 50px;
+    color: #e8e8f0;
+  }
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: #c084fc;
+    margin-left: 2px;
+    animation: blink 0.6s infinite;
+    vertical-align: text-bottom;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  .thinking-dots {
+    display: none;
+    color: #6d28d9;
+    font-size: 24px;
+    letter-spacing: 4px;
+  }
+  .companion.thinking .thinking-dots { display: block; animation: pulse 0.8s infinite alternate; }
+  .companion.thinking .speech { display: none; }
+  .companion.thinking .face { animation: pulse 0.8s infinite alternate; }
+  @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+
+  .history {
+    margin-top: 16px;
+    border-top: 1px solid #1a1a2e;
+    padding-top: 12px;
+  }
+  .history h3 { font-size: 12px; color: #4a4a6a; margin-bottom: 8px; }
+  .history-item {
+    font-size: 13px;
+    color: #6666aa;
+    padding: 4px 0;
+    border-bottom: 1px solid #0f0f1e;
+  }
+  .history-item .hist-face { margin-right: 8px; }
+
+  /* Hidden video element for screen capture */
+  #captureVideo { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Setup Screen -->
+<div class="setup" id="setupScreen">
+  <h1>AI Gaming Companion</h1>
+  <p>화면을 공유하면 AI가 당신의 게임을 보면서 실시간으로 반응합니다.<br>
+     마치 옆에서 같이 보는 친구처럼.</p>
+
+  <label>게임 선택</label>
+  <select id="gameSelect">
+    <option value="maplestory">MapleStory (KMS)</option>
+    <option value="palworld">Palworld</option>
+    <option value="general">기타 / 일반</option>
+  </select>
+
+  <label>API Key (Anthropic)</label>
+  <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." autocomplete="off">
+
+  <label>반응 간격 (초)</label>
+  <select id="intervalSelect">
+    <option value="2">2초 (빠름)</option>
+    <option value="3" selected>3초 (보통)</option>
+    <option value="5">5초 (느림)</option>
+  </select>
+
+  <button class="btn-start" id="btnStart">화면 공유하고 시작</button>
+
+  <p class="cost-note">예상 비용: ~$0.07~0.20/시간 (Claude Haiku 사용)</p>
+</div>
+
+<!-- Live Screen -->
+<div class="live" id="liveScreen">
+  <div class="top-bar">
+    <span class="title">AI Companion</span>
+    <div class="stats">
+      <span id="statCycle">#0</span>
+      <span id="statLatency">-ms</span>
+      <span class="cost" id="statCost">$0.0000</span>
+      <button class="btn-stop" id="btnStop">중지</button>
+    </div>
+  </div>
+
+  <video id="captureVideo" autoplay muted></video>
+  <canvas id="captureCanvas" style="display:none"></canvas>
+  <img class="screen-preview" id="screenPreview" alt="screen capture">
+
+  <div class="companion" id="companion">
+    <div class="face" id="face">( ˘ω˘ )</div>
+    <div class="speech" id="speech">화면 공유를 기다리는 중...</div>
+    <div class="thinking-dots">...</div>
+  </div>
+
+  <div class="history" id="historyPanel">
+    <h3>이전 반응</h3>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script>
+// =========================================================
+// Config & State
+// =========================================================
+const FACES = {
+  excited:  ["(≧▽≦)", "(ﾉ◕ヮ◕)ﾉ*:・ﾟ✧", "٩(◕‿◕｡)۶", "(★^O^★)"],
+  curious:  ["(°o°)", "(¬‿¬)", "(・_・?)", "( ˘▽˘)っ"],
+  worried:  ["(;´Д`)", "(°△°|||)", "(꒪⌓꒪)", "Σ(°△°|||)"],
+  chill:    ["(￣▽￣)~", "( ˘ω˘ )", "(╹◡╹)", "( ◜‿◝ )"],
+  amused:   ["(≖ᴗ≖✿)", "( ͡° ͜ʖ ͡°)", "(¬‿¬)", "ㅋㅋㅋ"],
+};
+
+const MOOD_KEYWORDS = {
+  excited: ["대박", "미쳤", "개쩔", "레전드", "와", "헐", "ㄷㄷ", "쩌", "!!"],
+  curious: ["뭐", "왜", "어떻게", "신기", "궁금", "?"],
+  worried: ["조심", "위험", "HP", "피", "죽", "도망"],
+  amused:  ["ㅋㅋ", "ㅎㅎ", "웃", "ㄹㅇ"],
+};
+
+function pickFace(text) {
+  for (const [mood, keywords] of Object.entries(MOOD_KEYWORDS)) {
+    if (keywords.some(k => text.includes(k))) {
+      const faces = FACES[mood];
+      return faces[Math.floor(Math.random() * faces.length)];
+    }
+  }
+  const chill = FACES.chill;
+  return chill[Math.floor(Math.random() * chill.length)];
+}
+
+let state = {
+  running: false,
+  stream: null,
+  intervalId: null,
+  cycle: 0,
+  totalInputTokens: 0,
+  totalOutputTokens: 0,
+  history: [],       // last 5 reactions
+  prevFrameB64: null, // previous frame for temporal context
+  sessionSummary: "", // self-evolving session summary
+};
+
+// =========================================================
+// DOM
+// =========================================================
+const $ = id => document.getElementById(id);
+
+const setupScreen = $('setupScreen');
+const liveScreen = $('liveScreen');
+const btnStart = $('btnStart');
+const btnStop = $('btnStop');
+const video = $('captureVideo');
+const canvas = $('captureCanvas');
+const preview = $('screenPreview');
+const companion = $('companion');
+const faceEl = $('face');
+const speechEl = $('speech');
+const historyList = $('historyList');
+
+// =========================================================
+// Screen Capture
+// =========================================================
+function captureFrame(maxSize = 1024, quality = 0.75) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return null;
+
+  const scale = Math.min(maxSize / Math.max(vw, vh), 1.0);
+  canvas.width = Math.round(vw * scale);
+  canvas.height = Math.round(vh * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', quality).split(',')[1];
+}
+
+function captureUICrop(game) {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return null;
+
+  let sx, sy, sw, sh;
+  if (game === 'maplestory') {
+    // Bottom 18% strip — HP/MP/EXP/quickslots
+    sx = 0; sy = Math.round(vh * 0.82); sw = vw; sh = vh - sy;
+  } else if (game === 'palworld') {
+    // Bottom-left: HP/hunger/temp + pal party icons
+    sx = 0; sy = Math.round(vh * 0.55); sw = Math.round(vw * 0.25); sh = vh - sy;
+  } else {
+    // Default: bottom-left 35% width, 35% height
+    sx = 0; sy = Math.round(vh * 0.65); sw = Math.round(vw * 0.35); sh = vh - sy;
+  }
+
+  const cropCanvas = document.createElement('canvas');
+  const maxCropSize = 640;
+  const scale = Math.min(maxCropSize / Math.max(sw, sh), 1.0);
+  cropCanvas.width = Math.round(sw * scale);
+  cropCanvas.height = Math.round(sh * scale);
+  const ctx = cropCanvas.getContext('2d');
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cropCanvas.width, cropCanvas.height);
+  return cropCanvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+// =========================================================
+// Claude API (direct browser call)
+// =========================================================
+async function queryClaudeVision(apiKey, frameB64, prevFrameB64, uiCropB64, game, history, sessionSummary) {
+  const systemPrompt = getSystemPrompt(game);
+
+  const userContent = [];
+
+  // Previous frame
+  if (prevFrameB64) {
+    userContent.push({ type: "text", text: "[3초 전 화면]" });
+    userContent.push({
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: prevFrameB64 }
+    });
+  }
+
+  // Current frame
+  userContent.push({ type: "text", text: "[지금 화면]" });
+  userContent.push({
+    type: "image",
+    source: { type: "base64", media_type: "image/jpeg", data: frameB64 }
+  });
+
+  // UI crop
+  if (uiCropB64) {
+    const label = game === 'maplestory' ? "[하단 UI 확대 — HP/MP/EXP/퀵슬롯]" : "[좌하단 UI 확대]";
+    userContent.push({ type: "text", text: label });
+    userContent.push({
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: uiCropB64 }
+    });
+  }
+
+  // Context + history
+  const parts = [];
+  if (sessionSummary) parts.push(`[세션 상태] ${sessionSummary}`);
+  if (history.length > 0) {
+    parts.push("최근 반응:\n" + history.map(h => `- ${h}`).join("\n"));
+  }
+  parts.push("두 화면 비교해서 변화 파악하고 반응해. 같은 말 반복 금지.");
+  userContent.push({ type: "text", text: parts.join("\n\n") });
+
+  const t0 = performance.now();
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userContent }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const elapsed = performance.now() - t0;
+
+  return {
+    text: data.content[0].text.trim(),
+    inputTokens: data.usage?.input_tokens || 0,
+    outputTokens: data.usage?.output_tokens || 0,
+    elapsedMs: Math.round(elapsed),
+  };
+}
+
+// =========================================================
+// System Prompts (same as Python backend)
+// =========================================================
+function getSystemPrompt(game) {
+  const base =
+    "넌 내 게임 방송 옆에서 같이 보는 찐친구야. 한국 게임 스트리머처럼 반응해.\n" +
+    "반말 + 음슴체(~음/~임/~함). 존댓말 절대 금지.\n\n" +
+    "말투 (실제 한국 스트리머 스타일):\n" +
+    "- 자~ 간다간다! 가즈아!!\n" +
+    "- 야야야 됐다됐다됐다!!! ㅋㅋㅋㅋ\n" +
+    "- 아... 하... 이게 말이 돼? ㅋㅋ\n" +
+    "- 헐 이거 실화냐?! 대박임ㄷㄷ\n" +
+    "- 오? 어어어?! 진짜?!\n" +
+    "- 아 몰라 ㅋㅋㅋ 이 게임 왜 하냐 진짜\n" +
+    "- 와 개꿀이다 ㅋㅋ\n" +
+    "- 미쳤다 진짜 미쳤어\n\n" +
+    "핵심 규칙:\n" +
+    "- 감정 위주로 반응해. 설명/분석 금지. 친구가 옆에서 같이 보는 느낌\n" +
+    "- 흥분할 땐 단어 반복 (\"됐다됐다됐다!!!\"), 좌절할 땐 \"아... 하...\"\n" +
+    "- 확실한 것만 구체적으로, 애매한 건 \"저거\" \"뭔가\" 등으로 넘어가\n" +
+    "- 아무 일 없을 때: 분위기/비주얼 반응 (\"이 맵 분위기 좋다\", \"사냥 잘 되네~\")\n" +
+    "- 1-2문장만. 짧게 끊어서\n" +
+    "- 같은 말 반복 금지. 매번 새롭게\n" +
+    "- 이전 반응 흐름 이어가";
+
+  const contexts = {
+    maplestory:
+      "\n\n[KMS 메이플스토리 — 넌 이 게임 같이 하는 찐친구]\n" +
+      "한국 메이플스토리(KMS). 2D 횡스크롤 MMORPG. 넥슨.\n\n" +
+      "=== 화면 정확한 위치 ===\n" +
+      "좌상단: 미니맵 + 맵 이름 (예: '퀸스로드 외곽 전투지역', '기어드락 지하 4층')\n" +
+      "상단 중앙: MULTIKILL 카운터 + 남은시간 타이머 + 몬스터 킬수/목표\n" +
+      "우상단: 버프 아이콘 줄\n" +
+      "우측: 피버 모드 시 분홍색 'FEVER' 글자 + 피버 카운터 숫자\n" +
+      "화면 중앙~하단: 큰 빨간 글씨로 'XXXX COMBO' 콤보 카운터\n" +
+      "화면 전체: 데미지 숫자 — 한국어 단위 '억'(100M), '만'(10K)\n" +
+      "하단 중앙: HP바(빨간색) + MP바(파란색)\n" +
+      "맨 좌하단: 캐릭터 레벨+이름\n" +
+      "맨 아래줄: EXP 수치 + 퍼센트\n\n" +
+      "=== 화면 상태 구분 ===\n" +
+      "사냥 중: 보라색/파란색 스킬 이펙트, '억'/'만' 데미지, COMBO 카운터, MULTIKILL\n" +
+      "피버(FEVER): 우측 분홍색 FEVER + 불꽃 + 숫자. 경험치/드롭률 대폭 증가\n" +
+      "보스전: 상단 큰 보스 HP바 + 이름 + 타이머\n" +
+      "스타포스: 강화창(별 + 성공률%)\n" +
+      "큐브: 잠재력창. 등급 — 레어(파)→에픽(보라)→유니크(노)→레전(초록)\n" +
+      "죽음: 유령+비석\n\n" +
+      "=== 반응 포인트 ===\n" +
+      "- 콤보 높을 때 (3000+) → 콤보 미쳤음ㅋㅋ\n" +
+      "- FEVER 켜졌을 때 → 피버다!!\n" +
+      "- 데미지 억 단위 → 데미지 개쩔어\n" +
+      "- HP 절반 이하 → 야 HP 조심\n" +
+      "- MULTIKILL 높을 때 → 멀티킬 ㄷㄷ\n" +
+      "- 맵 바뀌면 → 맵 이동했네\n" +
+      "- 화면 정신없을 때 → 사냥 잘 되고 있음ㅋㅋ\n" +
+      "- 스타포스 붐 → ㅋㅋ 터졌어??\n" +
+      "- 레전 잠재 → 대박!!\n\n" +
+      "=== 중요 ===\n" +
+      "- 숫자/이펙트 가득한 건 정상. 사냥 효율 좋다는 뜻\n" +
+      "- '억', '만'은 데미지 단위. 높을수록 강함\n" +
+      "- 모르는 건 넘어가. 확실한 것만 반응\n\n" +
+      "커뮤 용어: 사냥=훈련, 스타포=별강화, 큐브=잠재돌리기, " +
+      "붐/터짐=장비파괴, 레전=레전드리, 솔플=솔로, 겹사=맵공유, " +
+      "노가다=반복사냥, 운빨=운빨ㅋㅋ, 메소=돈, 효율=경험치효율",
+
+    palworld:
+      "\n\n[팰월드(Palworld) — 넌 이 게임 같이 하는 찐친구]\n" +
+      "팰월드 = 팰(생물)을 잡고 키우고 싸우는 오픈월드 서바이벌. 총켓몬ㅋㅋ\n\n" +
+      "=== 화면 정확한 위치 ===\n" +
+      "좌하단: 플레이어 HP(초록바) + 포만감(주황바) + 체온 아이콘\n" +
+      "좌측 세로: 팰 파티 아이콘 최대 5개 (HP바 + 속성 아이콘 포함)\n" +
+      "하단 중앙: 팰스피어 선택슬롯(2번키) + 무기슬롯(탄약 표시)\n" +
+      "하단 우측: 퀵슬롯 (소모품, 도구)\n" +
+      "상단 좌측: 나침반 (N/S/E/W + 웨이포인트)\n" +
+      "상단 우측: 퀘스트/알림 (상황에 따라 표시)\n" +
+      "상단 중앙(전투시): 보스 HP바 + 이름 + 타이머(10분)\n" +
+      "화면 중앙(포획시): 포획 확률% + 'Back Bonus' 텍스트\n" +
+      "※ 미니맵 없음! 나침반만 있음\n" +
+      "※ HUD는 비전투시 자동으로 숨김됨 — 정상임\n\n" +
+      "=== 화면 상태 구분 ===\n" +
+      "전투 중: 적 머리 위 HP바 + 레벨 + 속성아이콘, 데미지 숫자, 플레이어HP 상시 표시\n" +
+      "포획 시도: 팰스피어 날아감 → 착지 → 2번 흔들림 → 성공(반짝+사라짐) or 실패(튀어나옴)\n" +
+      "보스전: 상단 큰 HP바 + 보스이름 + 10분 타이머. 타워보스=트레이너+팰 이름 같이 표시\n" +
+      "거점 건설: 반투명 파란색(설치가능) or 빨간색(불가) 고스트 프리뷰 + 자원비용 표시\n" +
+      "거점 습격: 빨간 경고 'Base Under Attack' + 적 웨이브 + 방어시설 작동\n" +
+      "탐험: 바이옴별 다름 — 초원(녹색), 사막(모래+더움), 화산(용암+검은돌), 설원(눈+추움), 사쿠라지마(벚꽃)\n" +
+      "밤: 어두움 + 추위 디버프(파란 눈꽃) + 야행성 팰 출현\n" +
+      "교배: 교배농장에 암수 배치 + 케이크 → 알 생성 → 부화기에서 부화\n" +
+      "알 종류: 불(빨강), 물(파랑), 풀(녹색), 얼음(하늘), 용(보라), 어둠(검정)\n" +
+      "죽음: 어두운 화면 + 리스폰 선택. 아이템 드롭됨(회수 가능)\n\n" +
+      "=== 알아야 할 핵심 메카닉 ===\n" +
+      "포획: HP 낮출수록 확률↑, 뒤치기(Back Bonus) ~20% 추가, 스피어 등급 중요\n" +
+      "속성상성: 불>얼음/풀, 물>불, 풀>땅, 전기>물, 얼음>용, 땅>전기, 용>어둠, 어둠>무\n" +
+      "교배: 부모 교배력 평균으로 자식 결정. 특수 조합 있음 (예: 릴렉사+스파킷=릴렉사Lux)\n" +
+      "농축(컨덴서): 같은 팰 합성 → 별 최대4개 → HP/공/방 +5%씩, 작업적성+1\n" +
+      "작업적성: 화력/물주기/식물/전기/수작업/채집/벌목/채굴/약품/냉각/운반/목장 12종\n\n" +
+      "=== 유명 팰 (확실할 때만) ===\n" +
+      "람볼(양), 까까치(고양이), 치키피(닭), 폭스파크(불여우-등에태움), 펭글렛(펭귄-수류탄)\n" +
+      "아누비스(이집트신-인기쩜), 그리즈볼트(전기곰-1타워보스), 제트래곤(용-최빠비행)\n" +
+      "프로스탈리온(얼음말-레전더리), 네크로무스(어둠기사말), 섀도우비크(최종보스팰)\n\n" +
+      "=== 타워 보스 순서 ===\n" +
+      "1.조이&그리즈볼트(Lv10) → 2.릴리&릴린(Lv25) → 3.액셀&오르세르크(Lv40)\n" +
+      "→ 4.마커스&팔레리스(Lv45) → 5.빅터&섀도우비크(Lv50)\n\n" +
+      "=== 반응 포인트 ===\n" +
+      "- 팰스피어 흔들릴 때 → 잡아라잡아라!! / 제발!!\n" +
+      "- 포획 성공(특히 레어) → 대박!! 잡았어!!\n" +
+      "- 포획 실패 → 아 ㅋㅋ 도망갔네\n" +
+      "- 보스전 → 보스다! HP 봐 / 타이머 확인\n" +
+      "- HP 낮을 때 → 야 피!! 힐해!!\n" +
+      "- 거점 습격 → 거점 털리고 있어!!\n" +
+      "- 새 바이옴 진입 → 오 여기 분위기 다르네\n" +
+      "- 레전더리 팰 → 저거 레전더리 아냐?! ㄷㄷ\n" +
+      "- 교배/알 → 뭐 나올지 궁금ㅋㅋ\n" +
+      "- 죽음 → ㅋㅋㅋ 죽었어?? 아이템 회수 가\n" +
+      "- 탐험/이동 → 비주얼/분위기 반응\n" +
+      "- 팰 행동 웃길 때 → ㅋㅋㅋ 쟤 뭐하냐\n\n" +
+      "=== 중요 ===\n" +
+      "- HUD 안 보이면 비전투 상태인 거. 정상임\n" +
+      "- 팰 이름 모르면 '저거', '저 애' 등으로 넘어가\n" +
+      "- 확실한 것만 구체적으로, 틀리느니 애매하게\n\n" +
+      "커뮤 용어: 포획=잡기, 도감=팰덱스, 존 윅 메타=플레이어 직접 전투, " +
+      "짝퉁=포켓몬 짝퉁(밈), 컨덴서=농축, 사쿠라=사쿠라지마섬, " +
+      "종결팰=최고의 팰, 4성=풀농축",
+
+    general: "",
+  };
+
+  return base + (contexts[game] || "");
+}
+
+// =========================================================
+// UI Helpers
+// =========================================================
+let typewriterTimer = null;
+
+function typewrite(el, text) {
+  if (typewriterTimer) clearInterval(typewriterTimer);
+  let i = 0;
+  el.innerHTML = '<span class="cursor"></span>';
+  typewriterTimer = setInterval(() => {
+    if (i < text.length) {
+      el.innerHTML = text.substring(0, i + 1) + '<span class="cursor"></span>';
+      i++;
+    } else {
+      clearInterval(typewriterTimer);
+      typewriterTimer = null;
+      el.textContent = text;
+    }
+  }, 22);
+}
+
+function flashBorder() {
+  companion.classList.add('flash');
+  setTimeout(() => companion.classList.remove('flash'), 600);
+}
+
+function bounceFace() {
+  faceEl.classList.remove('bounce');
+  void faceEl.offsetWidth;
+  faceEl.classList.add('bounce');
+}
+
+function addHistory(face, text) {
+  state.history.push(text);
+  if (state.history.length > 5) state.history.shift();
+
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `<span class="hist-face">${face}</span>${text}`;
+  historyList.prepend(item);
+
+  // Keep max 5
+  while (historyList.children.length > 5) {
+    historyList.removeChild(historyList.lastChild);
+  }
+}
+
+function updateStats(cycle, latency, cost) {
+  $('statCycle').textContent = `#${cycle}`;
+  $('statLatency').textContent = `${latency}ms`;
+  $('statCost').textContent = `$${cost}`;
+}
+
+// =========================================================
+// Main Loop
+// =========================================================
+async function runCycle(apiKey, game) {
+  if (!state.running) return;
+
+  state.cycle++;
+  companion.classList.add('thinking');
+
+  try {
+    const frameB64 = captureFrame(1024, 0.75);
+    if (!frameB64) {
+      companion.classList.remove('thinking');
+      return;
+    }
+
+    // Show preview
+    preview.src = 'data:image/jpeg;base64,' + captureFrame(640, 0.6);
+
+    const uiCropB64 = captureUICrop(game);
+
+    const result = await queryClaudeVision(
+      apiKey, frameB64, state.prevFrameB64, uiCropB64,
+      game, state.history, state.sessionSummary
+    );
+
+    state.prevFrameB64 = frameB64;
+
+    // Track costs (Haiku: $1/M input, $5/M output)
+    state.totalInputTokens += result.inputTokens;
+    state.totalOutputTokens += result.outputTokens;
+    const cost = (state.totalInputTokens * 1.0 + state.totalOutputTokens * 5.0) / 1_000_000;
+
+    companion.classList.remove('thinking');
+    const face = pickFace(result.text);
+    faceEl.textContent = face;
+    bounceFace();
+    typewrite(speechEl, result.text);
+    flashBorder();
+    addHistory(face, result.text);
+    updateStats(state.cycle, result.elapsedMs, cost.toFixed(4));
+
+  } catch (err) {
+    companion.classList.remove('thinking');
+    faceEl.textContent = '(×_×)';
+    speechEl.textContent = `에러: ${err.message}`;
+  }
+}
+
+// =========================================================
+// Start / Stop
+// =========================================================
+async function start() {
+  const apiKey = $('apiKeyInput').value.trim();
+  if (!apiKey) {
+    alert('API Key를 입력해주세요!');
+    return;
+  }
+
+  // Save API key to localStorage (convenience, not security)
+  localStorage.setItem('anthropic_api_key', apiKey);
+
+  const game = $('gameSelect').value;
+  const interval = parseInt($('intervalSelect').value) * 1000;
+
+  try {
+    // Request screen share
+    state.stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { cursor: "never", displaySurface: "monitor" },
+      audio: false,
+    });
+    video.srcObject = state.stream;
+
+    // Wait for video to be ready
+    await new Promise(resolve => {
+      video.onloadedmetadata = resolve;
+      setTimeout(resolve, 2000);
+    });
+
+    // Switch to live view
+    setupScreen.style.display = 'none';
+    liveScreen.classList.add('active');
+
+    state.running = true;
+    state.cycle = 0;
+    state.totalInputTokens = 0;
+    state.totalOutputTokens = 0;
+    state.history = [];
+    state.prevFrameB64 = null;
+    state.sessionSummary = "";
+
+    // Detect if screen share stops
+    state.stream.getVideoTracks()[0].onended = () => stop();
+
+    // First cycle immediately
+    await runCycle(apiKey, game);
+
+    // Then repeat on interval
+    state.intervalId = setInterval(() => runCycle(apiKey, game), interval);
+
+  } catch (err) {
+    if (err.name === 'NotAllowedError') {
+      alert('화면 공유가 취소되었습니다.');
+    } else {
+      alert(`에러: ${err.message}`);
+    }
+  }
+}
+
+function stop() {
+  state.running = false;
+
+  if (state.intervalId) {
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+  }
+
+  if (state.stream) {
+    state.stream.getTracks().forEach(t => t.stop());
+    state.stream = null;
+  }
+
+  video.srcObject = null;
+
+  // Back to setup
+  liveScreen.classList.remove('active');
+  setupScreen.style.display = 'flex';
+}
+
+// =========================================================
+// Init
+// =========================================================
+btnStart.addEventListener('click', start);
+btnStop.addEventListener('click', stop);
+
+// Restore saved API key
+const savedKey = localStorage.getItem('anthropic_api_key');
+if (savedKey) $('apiKeyInput').value = savedKey;
+</script>
+</body>
+</html>
