@@ -141,3 +141,21 @@
   color: #444466;
   margin-top: 12px;
 }
+
+.btn-quit {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #dc2626;
+  background: transparent;
+  color: #dc2626;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 8px;
+  transition: background 0.2s;
+}
+.btn-quit:hover {
+  background: #dc2626;
+  color: white;
+}

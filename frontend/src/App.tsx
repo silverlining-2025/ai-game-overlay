@@ -17,6 +17,20 @@ export default function App() {
         setMode("overlay");
       }
     }
+
+    // ESC to quit
+    const handleKey = async (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        try {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          await getCurrentWindow().close();
+        } catch {
+          window.close();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
   const handleStart = (cfg: AppConfig) => {

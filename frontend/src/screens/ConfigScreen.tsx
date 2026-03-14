@@ -36,10 +36,13 @@ export default function ConfigScreen({ onStart }: Props) {
   const handleStart = async () => {
     const config: AppConfig = { game, character, interval, position };
 
-    // Try to open Tauri overlay window
+    // Launch Python backend + overlay window via Tauri
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("open_overlay");
+      await invoke("start_companion", {
+        game: config.game,
+        interval: config.interval,
+      });
     } catch {
       // Not in Tauri — just switch mode in-page
     }
@@ -118,6 +121,14 @@ export default function ConfigScreen({ onStart }: Props) {
         <p className="config-cost">
           예상 비용: ~$0.07~0.20/시간 (Claude Haiku)
         </p>
+        <button className="btn-quit" onClick={async () => {
+          try {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window");
+            await getCurrentWindow().close();
+          } catch {
+            window.close();
+          }
+        }}>종료</button>
       </div>
     </div>
   );

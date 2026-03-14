@@ -373,18 +373,15 @@ def query_claude_vision(
             "source": {"type": "base64", "media_type": "image/jpeg", "data": ui_b64},
         })
 
-    # World knowledge + session summary + history + instruction
+    # Fast-game context: minimal history, focus on NOW
     context_parts = []
     if world_knowledge:
         context_parts.append(f"[게임 지식]\n{world_knowledge}")
-    if session_summary:
-        context_parts.append(f"[세션 상태] {session_summary}")
     if history:
-        context_parts.append("최근 반응:\n" + "\n".join(f"- {h}" for h in history))
+        context_parts.append("직전 반응 (반복 방지용):\n" + "\n".join(f"- {h}" for h in history))
     context_parts.append(
-        "두 화면 비교해서 변화 파악하고 반응해. "
-        "UI 확대 이미지로 HP/MP/EXP 정확히 읽어. "
-        "같은 말 반복 금지."
+        "지금 이 순간만 봐. 이전 일은 잊어. "
+        "화면에 보이는 것만 반응해. 같은 말 반복 금지."
     )
     user_content.append({"type": "text", "text": "\n\n".join(context_parts)})
 

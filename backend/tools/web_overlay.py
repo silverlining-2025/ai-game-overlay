@@ -267,17 +267,25 @@ def main() -> None:
     parser.add_argument("--game", type=str, default="general")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--popup", action="store_true", help="Open as compact popup overlay (Chrome app mode)")
+    parser.add_argument("--headless", action="store_true", help="Don't open a browser (for Tauri frontend)")
     args = parser.parse_args()
 
     import anthropic
     import uvicorn
     from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import HTMLResponse
     from sse_starlette.sse import EventSourceResponse
 
     from backend.capture.screen import create_capture
 
     app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     clients: list[asyncio.Queue] = []
 
     @app.get("/", response_class=HTMLResponse)
@@ -318,7 +326,8 @@ def main() -> None:
 
         client = anthropic.Anthropic()
         system_prompt = get_system_prompt(args.game)
-        history: deque[str] = deque(maxlen=args.history)
+        # Fast-game profile: short memory, reactive, not narrative
+        history: deque[str] = deque(maxlen=2)
         prev_frame = None
         total_input_tokens = 0
         total_output_tokens = 0
@@ -356,11 +365,13 @@ def main() -> None:
                     user_content.append({"type": "text", "text": "[좌하단 UI 확대]"})
                     user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": ui_b64}})
 
+                # Fast-game context: minimal history, focus on NOW
+                instruction = "지금 이 순간만 봐. 이전 일은 잊어. 화면에 보이는 것만 반응해. 같은 말 반복 금지."
                 if history:
                     history_text = "\n".join(f"- {h}" for h in history)
-                    user_content.append({"type": "text", "text": f"최근 네 반응:\n{history_text}\n\n화면 보고 반응해. 같은 말 반복 금지."})
+                    user_content.append({"type": "text", "text": f"직전 반응 (반복 방지용):\n{history_text}\n\n{instruction}"})
                 else:
-                    user_content.append({"type": "text", "text": "화면 보고 반응해."})
+                    user_content.append({"type": "text", "text": instruction})
 
                 t0 = time.perf_counter()
                 response = client.messages.create(
@@ -414,9 +425,10 @@ def main() -> None:
     print(f"  Game: {args.game} | Interval: {args.interval}s")
     print(f"  Ctrl+C to stop\n")
 
-    # Auto-open browser
-    import webbrowser
-    if args.popup:
+    # Auto-open browser (skip if --headless, i.e. Tauri is the frontend)
+    if args.headless:
+        pass
+    elif args.popup:
         # Try to open as a small popup window via Chrome app mode
         import subprocess
         chrome_paths = [
