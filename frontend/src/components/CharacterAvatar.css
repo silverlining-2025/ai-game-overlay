@@ -1,0 +1,95 @@
+.avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.char-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Idle animations per character */
+.avatar-robot .antenna-dot {
+  animation: antenna-glow 2s infinite alternate;
+}
+@keyframes antenna-glow {
+  from { fill: #a855f7; }
+  to { fill: #c084fc; filter: drop-shadow(0 0 4px #c084fc); }
+}
+
+.avatar-robot .antenna {
+  animation: antenna-sway 3s ease-in-out infinite;
+  transform-origin: 32px 14px;
+}
+@keyframes antenna-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(5deg); }
+}
+
+.avatar-ghost .ghost-float {
+  animation: ghost-bob 2.5s ease-in-out infinite;
+}
+@keyframes ghost-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.avatar-cat .char-svg {
+  animation: cat-idle 4s ease-in-out infinite;
+}
+@keyframes cat-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.avatar-slime .slime-wobble {
+  animation: slime-squish 2s ease-in-out infinite;
+}
+@keyframes slime-squish {
+  0%, 100% { transform: scaleX(1) scaleY(1); }
+  50% { transform: scaleX(1.05) scaleY(0.95); }
+}
+
+.avatar-fox .char-svg {
+  animation: fox-tilt 3.5s ease-in-out infinite;
+}
+@keyframes fox-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+/* Mood-specific overrides */
+.mood-excited .char-svg {
+  animation: excited-bounce 0.5s ease infinite !important;
+}
+@keyframes excited-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.05); }
+}
+
+.mood-worried .char-svg {
+  animation: worried-shake 0.3s ease infinite !important;
+}
+@keyframes worried-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.mood-thinking .char-svg {
+  animation: thinking-tilt 1.5s ease-in-out infinite !important;
+}
+@keyframes thinking-tilt {
+  0%, 100% { transform: rotate(0deg); opacity: 0.7; }
+  50% { transform: rotate(8deg); opacity: 1; }
+}
+
+.mood-amused .eye-l,
+.mood-amused .eye-r {
+  animation: laugh-squint 0.8s ease infinite;
+}
+@keyframes laugh-squint {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

@@ -5,7 +5,7 @@ import {
   getLocale,
   setLocale,
   type TranslationKey,
-  type Locale,
+  type Locale as _Locale,
 } from "./index";
 
 export function useTranslation() {

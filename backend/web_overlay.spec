@@ -31,7 +31,10 @@ hidden += [
 a = Analysis(
     ['tools/web_overlay.py'],
     pathex=['..'],
-    binaries=[],
+    binaries=[
+        # pyexpat DLL needed by pkg_resources
+        (r'C:\ProgramData\anaconda3\DLLs\pyexpat.pyd', '.'),
+    ],
     datas=[
         ('data/*.txt', 'backend/data'),
     ],
@@ -53,7 +56,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='ai-game-overlay',
+    name='ai-companion',
     debug=False,
     strip=False,
     upx=True,
@@ -67,5 +70,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    name='ai-game-overlay',
+    name='ai-companion',
 )

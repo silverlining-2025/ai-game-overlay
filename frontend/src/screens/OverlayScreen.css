@@ -1,0 +1,130 @@
+.overlay-root {
+  position: fixed;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+/* Position variants */
+.overlay-top-right { top: 20px; right: 20px; }
+.overlay-top-left { top: 20px; left: 20px; }
+.overlay-bottom-right { bottom: 20px; right: 20px; }
+.overlay-bottom-left { bottom: 20px; left: 20px; }
+
+.companion-widget {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 380px;
+}
+
+/* Flip layout for left-side positions */
+.overlay-top-left .companion-widget,
+.overlay-bottom-left .companion-widget {
+  flex-direction: row;
+}
+.overlay-top-right .companion-widget,
+.overlay-bottom-right .companion-widget {
+  flex-direction: row-reverse;
+}
+
+.avatar-container {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  filter: drop-shadow(0 4px 12px rgba(109, 40, 217, 0.3));
+}
+
+.avatar-container:hover {
+  transform: scale(1.1);
+}
+
+.companion-widget.expanded .avatar-container {
+  animation: avatar-bounce 0.4s ease;
+}
+
+@keyframes avatar-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.speech-bubble {
+  background: #13132bee;
+  border: 2px solid #6d28d9;
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(109, 40, 217, 0.15);
+  animation: bubble-in 0.3s ease;
+  max-width: 300px;
+  backdrop-filter: blur(8px);
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.speech-text {
+  font-family: 'Malgun Gothic', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e8e8f0;
+  word-break: keep-all;
+}
+
+.thinking-text {
+  font-size: 13px;
+  color: #8888bb;
+  animation: pulse 0.8s infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: #c084fc;
+  margin-left: 2px;
+  animation: blink 0.6s infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.bubble-meta {
+  font-size: 10px;
+  color: #4a4a6a;
+  margin-top: 6px;
+  text-align: right;
+}
+
+.bubble-meta .cost {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+/* Thinking state */
+.companion-widget.thinking .avatar-container {
+  animation: think-wobble 1s infinite;
+}
+
+@keyframes think-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}

@@ -1,6 +1,6 @@
 {
-  "productName": "AI Game Overlay",
-  "version": "0.1.0",
+  "productName": "AI Gaming Companion",
+  "version": "0.2.0",
   "identifier": "com.ai-game-overlay.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -11,18 +11,15 @@
   "app": {
     "windows": [
       {
-        "label": "overlay",
-        "title": "AI Game Overlay",
-        "width": 1920,
-        "height": 1080,
-        "x": 0,
-        "y": 0,
-        "transparent": true,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
+        "label": "config",
+        "title": "AI Gaming Companion",
+        "width": 480,
+        "height": 640,
+        "center": true,
+        "transparent": false,
+        "decorations": true,
+        "alwaysOnTop": false,
         "resizable": false,
-        "shadow": false,
         "url": "index.html"
       }
     ],

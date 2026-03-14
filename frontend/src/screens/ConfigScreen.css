@@ -1,0 +1,143 @@
+.config-root {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0a0a1a 0%, #1a1030 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
+}
+
+.config-card {
+  width: 100%;
+  max-width: 420px;
+  background: #13132b;
+  border: 2px solid #2a2a4a;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.config-title {
+  font-size: 24px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #c084fc, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+
+.config-subtitle {
+  font-size: 13px;
+  color: #6666aa;
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+.config-section {
+  margin-bottom: 20px;
+}
+
+.config-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8888bb;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.character-grid {
+  display: flex;
+  gap: 8px;
+}
+
+.char-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 4px;
+  border-radius: 12px;
+  border: 2px solid #2a2a4a;
+  background: #1a1a35;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #8888bb;
+}
+
+.char-btn:hover {
+  border-color: #6d28d9;
+  background: #221f3d;
+}
+
+.char-btn.selected {
+  border-color: #a855f7;
+  background: #2d1f5e;
+  color: #e0e0ff;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
+}
+
+.char-emoji { font-size: 28px; }
+.char-label { font-size: 11px; }
+
+.config-select {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid #2a2a4a;
+  background: #1a1a35;
+  color: #e0e0ff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%236666aa'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.config-select:focus { border-color: #6d28d9; }
+
+.config-row {
+  display: flex;
+  gap: 12px;
+}
+
+.config-half { flex: 1; }
+
+.btn-start {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: white;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 8px;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+
+.btn-start:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(109, 40, 217, 0.4);
+}
+
+.btn-start:active {
+  transform: scale(0.98);
+}
+
+.config-cost {
+  text-align: center;
+  font-size: 11px;
+  color: #444466;
+  margin-top: 12px;
+}

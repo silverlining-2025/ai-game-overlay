@@ -80,99 +80,117 @@ HTML_PAGE = """<!DOCTYPE html>
     background: #0a0a1a;
     font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
     color: #f0f0ff;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
     overflow: hidden;
   }
+  /* Two modes: ?mode=overlay (compact, no screenshot) vs default (full, with screenshot) */
   .container {
-    width: 680px;
-    border: 3px solid #6d28d9;
-    border-radius: 16px;
-    background: #13132b;
-    padding: 24px;
-    box-shadow: 0 0 40px rgba(109, 40, 217, 0.3);
+    border: 2px solid #6d28d9;
+    border-radius: 12px;
+    background: #13132bee;
+    padding: 14px 18px;
+    margin: 8px;
+    box-shadow: 0 0 30px rgba(109, 40, 217, 0.2);
     transition: border-color 0.3s, box-shadow 0.3s;
   }
   .container.flash {
     border-color: #a855f7;
-    box-shadow: 0 0 60px rgba(168, 85, 247, 0.5);
+    box-shadow: 0 0 50px rgba(168, 85, 247, 0.5);
+  }
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
   }
   .face {
     font-family: 'Consolas', monospace;
-    font-size: 42px;
+    font-size: 28px;
     font-weight: bold;
     color: #c084fc;
-    margin-bottom: 8px;
     transition: transform 0.2s;
   }
-  .face.bounce {
-    animation: bounce 0.4s ease;
-  }
+  .face.bounce { animation: bounce 0.4s ease; }
   @keyframes bounce {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.15); }
+    50% { transform: scale(1.2); }
   }
+  .status {
+    font-size: 10px;
+    color: #4a4a6a;
+    text-align: right;
+  }
+  .status .cost { color: #22c55e; font-weight: bold; }
   .speech {
-    font-size: 18px;
+    font-size: 15px;
     line-height: 1.6;
-    min-height: 60px;
+    min-height: 36px;
     color: #e8e8f0;
-    margin-bottom: 12px;
   }
-  .speech .cursor {
+  .cursor {
     display: inline-block;
     width: 2px;
-    height: 1.1em;
+    height: 1em;
     background: #c084fc;
     margin-left: 2px;
     animation: blink 0.6s infinite;
     vertical-align: text-bottom;
   }
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  .thinking .face { animation: pulse 0.8s infinite alternate; }
+  @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
   .screen {
     width: 100%;
-    border-radius: 8px;
-    margin-bottom: 12px;
+    border-radius: 6px;
+    margin-top: 10px;
     border: 1px solid #2a2a4a;
-    display: none;
   }
-  .screen.visible { display: block; }
-  .status {
+  .history {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #1a1a2e;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  .hist-item {
     font-size: 11px;
-    color: #4a4a6a;
-    text-align: right;
+    color: #5a5a8a;
+    padding: 2px 0;
+    border-bottom: 1px solid #0f0f1e;
   }
-  .thinking .face {
-    animation: pulse 0.8s infinite alternate;
-  }
-  @keyframes pulse {
-    from { opacity: 0.5; }
-    to { opacity: 1; }
-  }
+  .hist-face { margin-right: 6px; font-size: 13px; }
+  /* Hide elements based on mode */
+  body.overlay-mode .screen,
+  body.overlay-mode .history { display: none; }
+  body.overlay-mode .container { background: #13132bdd; }
+  body.overlay-mode { background: transparent; }
 </style>
 </head>
 <body>
 <div class="container" id="container">
-  <img class="screen" id="screen" alt="screen capture">
-  <div class="face" id="face">( ˘ω˘ )</div>
+  <div class="top-row">
+    <div class="face" id="face">( ˘ω˘ )</div>
+    <div class="status" id="status">connecting...</div>
+  </div>
   <div class="speech" id="speech">연결 중...<span class="cursor"></span></div>
-  <div class="status" id="status">connecting...</div>
+  <img class="screen" id="screen" alt="capture" style="display:none">
+  <div class="history" id="history"></div>
 </div>
 <script>
 const face = document.getElementById('face');
 const speech = document.getElementById('speech');
 const status = document.getElementById('status');
 const container = document.getElementById('container');
-const screen = document.getElementById('screen');
+const screenImg = document.getElementById('screen');
+const historyEl = document.getElementById('history');
+
+// Check URL param for overlay mode (compact, no screenshot)
+const params = new URLSearchParams(window.location.search);
+const isOverlay = params.get('mode') === 'overlay';
+if (isOverlay) document.body.classList.add('overlay-mode');
 
 let typewriterTimer = null;
 
-function typewrite(text, callback) {
+function typewrite(text) {
   if (typewriterTimer) clearInterval(typewriterTimer);
   let i = 0;
   speech.innerHTML = '<span class="cursor"></span>';
@@ -183,10 +201,9 @@ function typewrite(text, callback) {
     } else {
       clearInterval(typewriterTimer);
       typewriterTimer = null;
-      speech.innerHTML = text;
-      if (callback) callback();
+      speech.textContent = text;
     }
-  }, 25);
+  }, 22);
 }
 
 function flashBorder() {
@@ -196,11 +213,18 @@ function flashBorder() {
 
 function bounceFace() {
   face.classList.remove('bounce');
-  void face.offsetWidth;  // force reflow
+  void face.offsetWidth;
   face.classList.add('bounce');
 }
 
-// SSE connection
+function addHistory(f, text) {
+  const item = document.createElement('div');
+  item.className = 'hist-item';
+  item.innerHTML = '<span class="hist-face">' + f + '</span>' + text;
+  historyEl.prepend(item);
+  while (historyEl.children.length > 5) historyEl.removeChild(historyEl.lastChild);
+}
+
 const evtSource = new EventSource('/stream');
 
 evtSource.onmessage = (event) => {
@@ -208,19 +232,19 @@ evtSource.onmessage = (event) => {
 
   if (data.type === 'thinking') {
     container.classList.add('thinking');
-    status.textContent = 'thinking...';
   } else if (data.type === 'response') {
     container.classList.remove('thinking');
     face.textContent = data.face;
     bounceFace();
     typewrite(data.text);
     flashBorder();
-    if (data.screenshot) {
-      screen.src = 'data:image/jpeg;base64,' + data.screenshot;
-      screen.classList.add('visible');
+    addHistory(data.face, data.text);
+    if (data.screenshot && !isOverlay) {
+      screenImg.src = 'data:image/jpeg;base64,' + data.screenshot;
+      screenImg.style.display = 'block';
     }
-    status.textContent = `#${data.cycle} | ${data.elapsed_ms}ms | ~$${data.cost_estimate || '?'}`;
-
+    const cost = data.cost_estimate || '?';
+    status.innerHTML = '#' + data.cycle + ' | ' + data.elapsed_ms + 'ms | <span class="cost">$' + cost + '</span>';
   } else if (data.type === 'error') {
     container.classList.remove('thinking');
     face.textContent = '(×_×)';
@@ -230,9 +254,7 @@ evtSource.onmessage = (event) => {
   }
 };
 
-evtSource.onerror = () => {
-  status.textContent = 'disconnected — retrying...';
-};
+evtSource.onerror = () => { status.textContent = 'disconnected...'; };
 </script>
 </body>
 </html>"""
@@ -244,6 +266,7 @@ def main() -> None:
     parser.add_argument("--history", type=int, default=5)
     parser.add_argument("--game", type=str, default="general")
     parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--popup", action="store_true", help="Open as compact popup overlay (Chrome app mode)")
     args = parser.parse_args()
 
     import anthropic
@@ -382,10 +405,38 @@ def main() -> None:
     thread = threading.Thread(target=ai_loop, daemon=True)
     thread.start()
 
-    print(f"\n  AI Companion overlay running at:")
-    print(f"  http://localhost:{args.port}")
+    base_url = f"http://localhost:{args.port}"
+    overlay_url = f"{base_url}?mode=overlay"
+
+    print(f"\n  AI Companion running:")
+    print(f"  Full view (2nd monitor): {base_url}")
+    print(f"  Compact overlay:         {overlay_url}")
     print(f"  Game: {args.game} | Interval: {args.interval}s")
-    print(f"  Open this URL in your browser!\n")
+    print(f"  Ctrl+C to stop\n")
+
+    # Auto-open browser
+    import webbrowser
+    if args.popup:
+        # Try to open as a small popup window via Chrome app mode
+        import subprocess
+        chrome_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ]
+        opened = False
+        for cp in chrome_paths:
+            if Path(cp).exists():
+                subprocess.Popen([
+                    cp, f"--app={overlay_url}",
+                    "--window-size=420,200",
+                    "--window-position=20,20",
+                ])
+                opened = True
+                break
+        if not opened:
+            webbrowser.open(overlay_url)
+    else:
+        webbrowser.open(base_url)
 
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
 
