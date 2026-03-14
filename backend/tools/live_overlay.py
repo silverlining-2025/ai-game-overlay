@@ -12,10 +12,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import atexit
 import base64
 import io
 import os
 import random
+import signal
 import sys
 import threading
 import time
@@ -24,6 +26,20 @@ from collections import deque
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
+
+# --- Global kill switch: ensures API calls stop immediately on exit ---
+_SHUTDOWN = threading.Event()
+
+
+def _force_exit(*_args):
+    """Hard shutdown — stops all API calls and exits."""
+    _SHUTDOWN.set()
+    os._exit(0)
+
+
+signal.signal(signal.SIGINT, _force_exit)
+signal.signal(signal.SIGTERM, _force_exit)
+atexit.register(lambda: _SHUTDOWN.set())
 
 if getattr(sys, 'frozen', False):
     _REPO_ROOT = Path(sys.executable).parent
@@ -440,7 +456,12 @@ def main() -> None:
     drag = {"x": 0, "y": 0}
     root.bind("<Button-1>", lambda e: drag.update(x=e.x, y=e.y))
     root.bind("<B1-Motion>", lambda e: root.geometry(f"+{root.winfo_x()+e.x-drag['x']}+{root.winfo_y()+e.y-drag['y']}"))
-    root.bind("<Escape>", lambda e: root.destroy())
+    def shutdown_and_destroy(e=None):
+        _SHUTDOWN.set()
+        root.destroy()
+
+    root.bind("<Escape>", shutdown_and_destroy)
+    root.protocol("WM_DELETE_WINDOW", shutdown_and_destroy)
 
     # Hide/show for clean capture
     capture_lock = threading.Event()
@@ -498,8 +519,9 @@ def main() -> None:
                 return
 
         cycle = 0
-        while True:
-            time.sleep(args.interval)
+        while not _SHUTDOWN.is_set():
+            if _SHUTDOWN.wait(timeout=args.interval):
+                break  # shutdown requested
 
             cycle += 1
             thinking_active["v"] = True

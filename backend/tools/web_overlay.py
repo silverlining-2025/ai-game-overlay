@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import atexit
 import base64
 import io
 import json
 import os
 import random
+import signal
 import sys
 import threading
 import time
@@ -25,6 +27,20 @@ from collections import deque
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
+
+# --- Global kill switch: ensures API calls stop immediately on exit ---
+_SHUTDOWN = threading.Event()
+
+
+def _force_exit(*_args):
+    """Hard shutdown — stops all API calls and exits."""
+    _SHUTDOWN.set()
+    os._exit(0)
+
+
+signal.signal(signal.SIGINT, _force_exit)
+signal.signal(signal.SIGTERM, _force_exit)
+atexit.register(lambda: _SHUTDOWN.set())
 
 if getattr(sys, 'frozen', False):
     _REPO_ROOT = Path(sys.executable).parent
@@ -203,7 +219,8 @@ evtSource.onmessage = (event) => {
       screen.src = 'data:image/jpeg;base64,' + data.screenshot;
       screen.classList.add('visible');
     }
-    status.textContent = `#${data.cycle} | ${data.elapsed_ms}ms | ${data.interval}s cycle`;
+    status.textContent = `#${data.cycle} | ${data.elapsed_ms}ms | ~$${data.cost_estimate || '?'}`;
+
   } else if (data.type === 'error') {
     container.classList.remove('thinking');
     face.textContent = '(×_×)';
@@ -244,6 +261,11 @@ def main() -> None:
     async def index():
         return HTML_PAGE
 
+    @app.post("/shutdown")
+    async def shutdown():
+        _SHUTDOWN.set()
+        return {"status": "shutting down"}
+
     @app.get("/stream")
     async def stream():
         q: asyncio.Queue = asyncio.Queue()
@@ -275,12 +297,14 @@ def main() -> None:
         system_prompt = get_system_prompt(args.game)
         history: deque[str] = deque(maxlen=args.history)
         prev_frame = None
+        total_input_tokens = 0
+        total_output_tokens = 0
 
         broadcast({"type": "status", "text": f"ready | {args.game} | {args.interval}s cycle"})
         time.sleep(1)
 
         cycle = 0
-        while True:
+        while not _SHUTDOWN.is_set():
             frame = cap.grab()
             if frame is not None:
                 frame = frame.copy()
@@ -325,6 +349,12 @@ def main() -> None:
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 text = response.content[0].text.strip()
 
+                # Track costs (Haiku: $1/M input, $5/M output)
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+                cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
+                cost_str = f"{cost:.4f}"
+
                 prev_frame = frame
                 history.append(text)
 
@@ -339,12 +369,14 @@ def main() -> None:
                     "elapsed_ms": round(elapsed_ms),
                     "interval": args.interval,
                     "screenshot": display_b64,
+                    "cost_estimate": cost_str,
                 })
 
             except Exception as ex:
                 broadcast({"type": "error", "text": f"에러: {ex}"})
 
-            time.sleep(args.interval)
+            if _SHUTDOWN.wait(timeout=args.interval):
+                break
 
     # Start AI loop in background thread
     thread = threading.Thread(target=ai_loop, daemon=True)
