@@ -26,7 +26,10 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+if getattr(sys, 'frozen', False):
+    _REPO_ROOT = Path(sys.executable).parent
+else:
+    _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
