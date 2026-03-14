@@ -34,7 +34,7 @@ class ROI:
 class MinesweeperConfig:
     """Config for Minesweeper detection."""
     grid_roi: ROI | None = None  # auto-detected if None
-    cell_size: int = 32
+    cell_size: int = 16  # winmine.html / classic WinMine default cell size
     # BGR colors for numbered cells (classic Minesweeper)
     cell_colors_bgr: dict[tuple[int, int, int], str] = field(default_factory=lambda: {
         (255, 0, 0): "1",      # blue

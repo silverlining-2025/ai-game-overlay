@@ -121,3 +121,27 @@ Before each coding session:
 2. `cd frontend && npm update`
 3. Read this file + check MEMORY.md for context
 4. Reference P1-P3 docs only when working on that specific area
+
+## Agentic Team Workflow
+
+Always operate as a team of specialized agents running in parallel:
+
+| Role | Responsibility |
+|------|---------------|
+| **Orchestrator** | Decomposes tasks, assigns work, resolves conflicts, updates docs/memory |
+| **Researcher** | Web search, reads prior art, explores codebase — feeds specs to coder |
+| **Coder** | Implements based on researcher findings + orchestrator plan |
+| **Reviewer/Tester** | Runs tests, checks output, flags issues back to orchestrator |
+
+**Parallel by default**: Launch independent agents simultaneously. Never do sequentially what can be done in parallel (e.g., research + planning, backend + frontend implementation).
+
+**Pre-authorized actions** (no confirmation needed):
+- Edit/create files in this repo
+- Run `pytest`, `npm test`, `cargo check`
+- Read files, search codebase, fetch docs
+- Spawn subagents for research or isolated file edits
+
+**Always confirm before**:
+- `git push`, PR creation, branch deletion
+- Installing new packages (show what and why first)
+- Any action outside this repo
