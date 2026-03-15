@@ -77,9 +77,9 @@ class MoondreamConfig:
 @dataclass
 class AIConfig:
     """Config for AI model integration."""
-    gemini_api_key: str = field(default_factory=lambda: os.environ.get("GEMINI_API_KEY", ""))
-    gemini_model: str = "gemini-2.0-flash"
-    temperature: float = 0.3
+    anthropic_api_key: str = field(default_factory=lambda: os.environ.get("ANTHROPIC_API_KEY", ""))
+    model: str = "claude-haiku-4-5-20251001"
+    temperature: float = 0.7
     locale: str = "ko"
     moondream: MoondreamConfig = field(default_factory=MoondreamConfig)
 

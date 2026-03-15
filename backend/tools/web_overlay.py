@@ -45,9 +45,10 @@ _SHUTDOWN = threading.Event()
 
 
 def _force_exit(*_args):
-    """Hard shutdown — stops all API calls and exits."""
+    """Graceful shutdown — stops all API calls, then exits."""
     _SHUTDOWN.set()
-    os._exit(0)
+    # Give threads 1s to clean up, then force exit
+    threading.Timer(1.0, lambda: os._exit(0)).start()
 
 
 signal.signal(signal.SIGINT, _force_exit)
@@ -326,8 +327,8 @@ def main() -> None:
     app = FastAPI()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
+        allow_origins=["http://localhost:1420", "https://tauri.localhost", "tauri://localhost"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
     clients: list[asyncio.Queue] = []
@@ -345,21 +346,31 @@ def main() -> None:
     async def stream():
         q: asyncio.Queue = asyncio.Queue()
         clients.append(q)
-        try:
-            async def event_gen():
+
+        async def event_gen():
+            try:
                 while True:
                     data = await q.get()
                     yield {"data": json.dumps(data, ensure_ascii=False)}
-            return EventSourceResponse(event_gen())
-        except Exception:
-            clients.remove(q)
+            except asyncio.CancelledError:
+                pass
+            finally:
+                # Clean up on disconnect
+                if q in clients:
+                    clients.remove(q)
+                log.info("SSE client disconnected (%d remaining)", len(clients))
+
+        return EventSourceResponse(event_gen())
 
     def broadcast(data: dict):
+        dead = []
         for q in clients:
             try:
                 q.put_nowait(data)
             except Exception:
-                pass
+                dead.append(q)
+        for q in dead:
+            clients.remove(q)
 
     def ai_loop():
         from backend.cv.event_detector import EventDetector
@@ -371,7 +382,13 @@ def main() -> None:
                 break
             time.sleep(0.1)
 
-        client = anthropic.Anthropic()
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            log.error("ANTHROPIC_API_KEY not set! Add it to backend/.env")
+            broadcast({"type": "error", "text": "API 키가 설정되지 않았습니다. backend/.env 파일을 확인하세요."})
+            return
+
+        client = anthropic.Anthropic(api_key=api_key)
         base_system_prompt = get_system_prompt(args.game, args.character)
 
         # Layered architecture
@@ -545,6 +562,7 @@ def main() -> None:
     print(f"  Ctrl+C to stop\n")
 
     # Auto-open browser (skip if --headless, i.e. Tauri is the frontend)
+    import webbrowser
     if args.headless:
         pass
     elif args.popup:
@@ -569,7 +587,7 @@ def main() -> None:
     else:
         webbrowser.open(base_url)
 
-    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
 
 
 if __name__ == "__main__":

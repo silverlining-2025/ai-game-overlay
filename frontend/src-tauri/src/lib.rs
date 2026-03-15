@@ -85,7 +85,7 @@ async fn start_companion(
 
         if let Ok(raw_hwnd) = overlay.hwnd() {
             unsafe {
-                let hwnd: HWND = std::mem::transmute(raw_hwnd);
+                let hwnd = HWND(raw_hwnd.0 as *mut std::ffi::c_void);
                 let _ = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
             }
         }
