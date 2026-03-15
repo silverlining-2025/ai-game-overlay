@@ -379,14 +379,20 @@ def main() -> None:
     log.info("Starting server on %s (game=%s, char=%s)", base_url, args.game, args.character)
 
     # Auto-open browser (skip if --headless)
-    if not args.headless and not args.popup:
+    if not args.headless:
         try:
             import webbrowser
             webbrowser.open(base_url)
         except Exception:
             pass
 
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    try:
+        log.info("Starting uvicorn...")
+        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+    except Exception as e:
+        log.error("uvicorn failed: %s", e)
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

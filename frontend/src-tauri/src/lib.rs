@@ -43,6 +43,7 @@ async fn start_companion(
 
     let backend = std::process::Command::new("python")
         .args([
+            "-X", "utf8",
             "-m", "backend.tools.web_overlay",
             "--game", &game,
             "--interval", &interval.to_string(),
@@ -51,6 +52,7 @@ async fn start_companion(
             "--headless",
             "--save-training",
         ])
+        .env("PYTHONIOENCODING", "utf-8")
         .current_dir(&repo_root)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
