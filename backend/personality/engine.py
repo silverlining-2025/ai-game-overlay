@@ -107,11 +107,13 @@ class PersonalityEngine:
         self._last_update = now
 
         # Tunable parameters
-        self.cooldown_sec = 2.5          # min seconds between utterances
-        self.burst_cooldown_sec = 1.0    # shorter cooldown for bursts
-        self.idle_chat_after = 15.0      # seconds of silence before idle chat
+        self.cooldown_sec = 5.0          # default cooldown (exploration pace)
+        self.combat_cooldown_sec = 1.5   # faster during combat
+        self.burst_cooldown_sec = 1.0    # shortest for big events
+        self.idle_chat_after = 10.0      # seconds of silence before idle chat
         self.burst_threshold = 0.7       # event score to trigger burst
-        self.react_threshold = 0.4       # event score to trigger react
+        self.react_threshold = 0.5       # raised from 0.4 — less chatty during exploration
+        self._in_combat = False          # track combat state for dynamic cooldown
 
     def decide(self, event_score: float, event_label: str) -> tuple[ResponseMode, dict]:
         """Given an event score, decide what to do."""
@@ -128,9 +130,18 @@ class PersonalityEngine:
         # Boost emotions based on event
         self._apply_event_boost(event_score, event_label)
 
-        # Track event timing
+        # Track event timing and combat state
         if event_score > 0.3:
             self.state.last_event_time = now
+
+        # Detect combat state from event labels
+        if event_label in ("major", "scene_change") and event_score >= 0.7:
+            self._in_combat = True
+        elif event_label == "idle" and self.state.consecutive_silences > 5:
+            self._in_combat = False
+
+        # Dynamic cooldown based on state
+        active_cooldown = self.combat_cooldown_sec if self._in_combat else self.cooldown_sec
 
         # --- Decision logic ---
 
@@ -146,8 +157,8 @@ class PersonalityEngine:
                 "prompt_hint": f"짧게! 1문장! (기분: {mood})",
             }
 
-        # MEDIUM EVENT — normal reaction (standard cooldown)
-        if event_score >= self.react_threshold and since_speak >= self.cooldown_sec:
+        # MEDIUM EVENT — normal reaction (dynamic cooldown)
+        if event_score >= self.react_threshold and since_speak >= active_cooldown:
             delay = random.uniform(0.5, 2.0)
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
@@ -161,7 +172,7 @@ class PersonalityEngine:
             }
 
         # Cooldown — stay quiet
-        if since_speak < self.cooldown_sec:
+        if since_speak < active_cooldown:
             self.state.consecutive_silences += 1
             return ResponseMode.SILENT, {}
 
