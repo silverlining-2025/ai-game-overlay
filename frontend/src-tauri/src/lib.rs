@@ -1,6 +1,6 @@
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+use tauri::tray::TrayIconBuilder;
 use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
@@ -120,27 +120,28 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
 
     // Close overlay
     if let Some(overlay) = app.get_webview_window("overlay") {
-        let _ = overlay.close();
+        let _ = overlay.destroy();
     }
 
-    // Show config window — recreate if it was destroyed
+    // Always recreate config window fresh (avoids stale state issues)
     if let Some(config) = app.get_webview_window("config") {
-        let _ = config.show();
-        let _ = config.set_focus();
-    } else {
-        // Recreate config window
-        let _ = tauri::WebviewWindowBuilder::new(
-            &app,
-            "config",
-            tauri::WebviewUrl::App("index.html".into()),
-        )
-        .title("AI Gaming Companion")
-        .inner_size(480.0, 640.0)
-        .center()
-        .resizable(false)
-        .build()
-        .map_err(|e| e.to_string())?;
+        let _ = config.destroy();
     }
+
+    // Small delay for window cleanup
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    let _ = tauri::WebviewWindowBuilder::new(
+        &app,
+        "config",
+        tauri::WebviewUrl::App("index.html".into()),
+    )
+    .title("AI Gaming Companion")
+    .inner_size(480.0, 640.0)
+    .center()
+    .resizable(false)
+    .build()
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }

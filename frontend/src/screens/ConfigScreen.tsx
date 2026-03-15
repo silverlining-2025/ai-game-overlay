@@ -30,23 +30,21 @@ interface Props {
 
 export default function ConfigScreen({ onStart }: Props) {
   const [character, setCharacter] = useState<AppConfig["character"]>("nozomi");
-  const [game, setGame] = useState<AppConfig["game"]>("maplestory");
-  const [interval, setInterval_] = useState(3);
+  const [game, setGame] = useState<AppConfig["game"]>("palworld");
   const [position, setPosition] = useState<AppConfig["position"]>("top-right");
 
   const handleStart = async () => {
-    const config: AppConfig = { game, character, interval, position };
+    const config: AppConfig = { game, character, interval: 3, position };
 
-    // Launch Python backend + overlay window via Tauri
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("start_companion", {
         game: config.game,
         character: config.character,
-        interval: config.interval,
+        interval: 3.0,
       });
     } catch {
-      // Not in Tauri — just switch mode in-page
+      // Not in Tauri
     }
 
     onStart(config);
@@ -65,6 +63,7 @@ export default function ConfigScreen({ onStart }: Props) {
           <div className="character-grid">
             {CHARACTERS.map((c) => (
               <button
+                type="button"
                 key={c.id}
                 className={`char-btn ${character === c.id ? "selected" : ""}`}
                 onClick={() => setCharacter(c.id)}
@@ -80,6 +79,7 @@ export default function ConfigScreen({ onStart }: Props) {
           <label className="config-label">게임</label>
           <select
             className="config-select"
+            title="게임 선택"
             value={game}
             onChange={(e) => setGame(e.target.value as AppConfig["game"])}
           >
@@ -89,44 +89,36 @@ export default function ConfigScreen({ onStart }: Props) {
           </select>
         </div>
 
-        <div className="config-row">
-          <div className="config-section config-half">
-            <label className="config-label">반응 간격</label>
-            <select
-              className="config-select"
-              value={interval}
-              onChange={(e) => setInterval_(Number(e.target.value))}
-            >
-              <option value={2}>2초 (빠름)</option>
-              <option value={3}>3초 (보통)</option>
-              <option value={5}>5초 (느림)</option>
-            </select>
-          </div>
-          <div className="config-section config-half">
-            <label className="config-label">위치</label>
-            <select
-              className="config-select"
-              value={position}
-              onChange={(e) => setPosition(e.target.value as AppConfig["position"])}
-            >
-              {POSITIONS.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
-          </div>
+        <div className="config-section">
+          <label className="config-label">위치</label>
+          <select
+            className="config-select"
+            title="오버레이 위치"
+            value={position}
+            onChange={(e) => setPosition(e.target.value as AppConfig["position"])}
+          >
+            {POSITIONS.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
         </div>
 
-        <button className="btn-start" onClick={handleStart}>
+        <p className="config-hint">
+          이벤트 기반 반응 — 화면 변화가 감지될 때만 반응합니다.
+          Hold Alt to interact with overlay.
+        </p>
+
+        <button type="button" className="btn-start" onClick={handleStart}>
           시작하기
         </button>
 
         <p className="config-cost">
-          예상 비용: ~$0.07~0.20/시간 (Claude Haiku)
+          예상 비용: ~$0.05~0.10/시간 (이벤트 기반, Claude Haiku)
         </p>
-        <button className="btn-quit" onClick={async () => {
+        <button type="button" className="btn-quit" onClick={async () => {
           try {
-            const { getCurrentWindow } = await import("@tauri-apps/api/window");
-            await getCurrentWindow().close();
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("quit_app");
           } catch {
             window.close();
           }

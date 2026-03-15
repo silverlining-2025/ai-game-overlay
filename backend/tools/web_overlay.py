@@ -144,7 +144,7 @@ def main() -> None:
     app = FastAPI()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:1420", "https://tauri.localhost", "tauri://localhost"],
+        allow_origin_regex=r"^(http://localhost:\d+|https?://tauri\.localhost|tauri://localhost)$",
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
