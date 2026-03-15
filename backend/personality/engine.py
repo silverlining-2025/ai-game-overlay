@@ -102,7 +102,7 @@ class PersonalityEngine:
     def __init__(self):
         self.state = PersonalityState()
         now = time.time()
-        self.state.last_speak_time = now
+        self.state.last_speak_time = 0  # Allow immediate first reaction
         self.state.last_event_time = now
         self._last_update = now
 

@@ -126,23 +126,10 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
         let _ = child.wait();
     }
 
-    // Close overlay
-    if let Some(overlay) = app.get_webview_window("overlay") {
-        let _ = overlay.close();
-    }
-
-    // Recreate config window fresh (clean React state)
-    // Close any existing one first
-    if let Some(config) = app.get_webview_window("config") {
-        let _ = config.close();
-    }
-
-    // Spawn recreation in background thread to avoid blocking
-    let app_handle = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(300));
+    // Create config window FIRST (before closing overlay — prevents zero-window exit)
+    if app.get_webview_window("config").is_none() {
         let _ = tauri::WebviewWindowBuilder::new(
-            &app_handle,
+            &app,
             "config",
             tauri::WebviewUrl::App("index.html".into()),
         )
@@ -150,8 +137,17 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
         .inner_size(480.0, 640.0)
         .center()
         .resizable(false)
-        .build();
-    });
+        .build()
+        .map_err(|e| e.to_string())?;
+    } else if let Some(config) = app.get_webview_window("config") {
+        let _ = config.show();
+        let _ = config.set_focus();
+    }
+
+    // Now close overlay (config exists, app won't exit)
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.close();
+    }
 
     Ok(())
 }
