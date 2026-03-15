@@ -142,10 +142,11 @@ def main() -> None:
     from backend.capture.screen import create_capture
 
     app = FastAPI()
+    # CORS: allow all origins — server only binds to 127.0.0.1 so this is safe
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"^(http://localhost:\d+|https?://tauri\.localhost|tauri://localhost)$",
-        allow_methods=["GET", "POST"],
+        allow_origins=["*"],
+        allow_methods=["*"],
         allow_headers=["*"],
     )
     clients: list[asyncio.Queue] = []

@@ -120,28 +120,30 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
 
     // Close overlay
     if let Some(overlay) = app.get_webview_window("overlay") {
-        let _ = overlay.destroy();
+        let _ = overlay.close();
     }
 
-    // Always recreate config window fresh (avoids stale state issues)
+    // Show config window, or recreate it
     if let Some(config) = app.get_webview_window("config") {
-        let _ = config.destroy();
+        let _ = config.show();
+        let _ = config.set_focus();
+    } else {
+        // Recreate — use a short delay so the overlay closes first
+        let app_handle = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = tauri::WebviewWindowBuilder::new(
+                &app_handle,
+                "config",
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("AI Gaming Companion")
+            .inner_size(480.0, 640.0)
+            .center()
+            .resizable(false)
+            .build();
+        });
     }
-
-    // Small delay for window cleanup
-    std::thread::sleep(std::time::Duration::from_millis(200));
-
-    let _ = tauri::WebviewWindowBuilder::new(
-        &app,
-        "config",
-        tauri::WebviewUrl::App("index.html".into()),
-    )
-    .title("AI Gaming Companion")
-    .inner_size(480.0, 640.0)
-    .center()
-    .resizable(false)
-    .build()
-    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -213,10 +215,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // When config window is closed, quit everything
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if window.label() == "config" {
-                    let app = window.app_handle();
+                let app = window.app_handle();
+                let label = window.label().to_string();
+
+                // If config window is closed and no overlay exists, quit
+                if label == "config" && app.get_webview_window("overlay").is_none() {
                     let state = app.state::<BackendProcess>();
                     if let Some(mut child) = state.0.lock().unwrap().take() {
                         let _ = child.kill();
