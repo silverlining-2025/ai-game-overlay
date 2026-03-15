@@ -129,7 +129,7 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
     }
 
     // Small delay for window cleanup
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    std::thread::sleep(std::time::Duration::from_millis(200));
 
     let _ = tauri::WebviewWindowBuilder::new(
         &app,
