@@ -328,18 +328,14 @@ def pick_face(text: str) -> str:
 
 
 def frame_to_base64(frame, max_size: int = 1024, quality: int = 75) -> str:
-    """Resize and JPEG-encode frame for API."""
+    """Resize and JPEG-encode frame for API. Uses cv2.imencode (faster than PIL)."""
     import cv2
     h, w = frame.shape[:2]
     scale = min(max_size / max(h, w), 1.0)
     if scale < 1.0:
-        frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    from PIL import Image
-    img = Image.fromarray(rgb)
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=quality)
-    return base64.standard_b64encode(buf.getvalue()).decode("ascii")
+        frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    return base64.standard_b64encode(buf.tobytes()).decode("ascii")
 
 
 def crop_ui_region(frame, game: str = "general") -> str | None:

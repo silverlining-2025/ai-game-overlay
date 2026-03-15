@@ -343,29 +343,36 @@ def main() -> None:
         return {"status": "shutting down"}
 
     @app.get("/stream")
-    async def stream():
-        q: asyncio.Queue = asyncio.Queue()
+    async def stream(request):
+        q: asyncio.Queue = asyncio.Queue(maxsize=10)
         clients.append(q)
 
         async def event_gen():
             try:
-                while True:
-                    data = await q.get()
-                    yield {"data": json.dumps(data, ensure_ascii=False)}
+                while not await request.is_disconnected():
+                    try:
+                        data = await asyncio.wait_for(q.get(), timeout=1.0)
+                        yield {"data": json.dumps(data, ensure_ascii=False)}
+                    except asyncio.TimeoutError:
+                        continue
             except asyncio.CancelledError:
-                pass
+                raise  # always re-raise for proper cleanup
             finally:
-                # Clean up on disconnect
                 if q in clients:
                     clients.remove(q)
                 log.info("SSE client disconnected (%d remaining)", len(clients))
 
-        return EventSourceResponse(event_gen())
+        return EventSourceResponse(event_gen(), ping=15)
 
     def broadcast(data: dict):
         dead = []
         for q in clients:
             try:
+                if q.full():
+                    try:
+                        q.get_nowait()  # drop oldest — overlay only needs latest
+                    except asyncio.QueueEmpty:
+                        pass
                 q.put_nowait(data)
             except Exception:
                 dead.append(q)
@@ -388,7 +395,12 @@ def main() -> None:
             broadcast({"type": "error", "text": "API 키가 설정되지 않았습니다. backend/.env 파일을 확인하세요."})
             return
 
-        client = anthropic.Anthropic(api_key=api_key)
+        import httpx
+        client = anthropic.Anthropic(
+            api_key=api_key,
+            timeout=httpx.Timeout(30.0, connect=5.0),
+            max_retries=2,
+        )
         base_system_prompt = get_system_prompt(args.game, args.character)
 
         # Layered architecture
@@ -539,18 +551,9 @@ def main() -> None:
             if _SHUTDOWN.wait(timeout=wait):
                 break
 
-    # SSE heartbeat to prevent connection timeouts
-    def heartbeat_loop():
-        while not _SHUTDOWN.is_set():
-            broadcast({"type": "heartbeat"})
-            if _SHUTDOWN.wait(timeout=15):
-                break
-
-    # Start AI loop + heartbeat in background threads
+    # Start AI loop in background thread (SSE ping=15 handles keepalive)
     thread = threading.Thread(target=ai_loop, daemon=True)
     thread.start()
-    hb_thread = threading.Thread(target=heartbeat_loop, daemon=True)
-    hb_thread.start()
 
     base_url = f"http://localhost:{args.port}"
     overlay_url = f"{base_url}?mode=overlay"
