@@ -299,7 +299,7 @@ def main() -> None:
                     prompt_text += "화면 보고 캐릭터답게 반응."
 
                 # Add excitement context
-                excitement = personality.get_excitement_label()
+                excitement = personality.get_emotion_context()
                 if excitement != "평온":
                     prompt_text += f"\n(지금 기분: {excitement})"
 
@@ -360,7 +360,7 @@ def main() -> None:
                     "event": signal.label,
                     "event_score": round(signal.score, 2),
                     "mode": mode.value,
-                    "excitement": personality.get_excitement_label(),
+                    "excitement": personality.get_emotion_context(),
                 })
 
             except Exception as ex:

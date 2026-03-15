@@ -89,7 +89,7 @@ class EventDetector:
             self._prev_gray = small
             self._prev_blur = blur
             self._prev_hist = self._calc_hist(frame)
-            signal.score = 0.3
+            signal.score = 0.5  # Above react_threshold so first frame triggers
             signal.label = "first_frame"
             return signal
 
