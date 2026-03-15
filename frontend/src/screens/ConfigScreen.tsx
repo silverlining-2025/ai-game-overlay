@@ -36,6 +36,9 @@ export default function ConfigScreen({ onStart }: Props) {
   const handleStart = async () => {
     const config: AppConfig = { game, character, interval: 3, position };
 
+    // Save config BEFORE creating overlay window (overlay reads this on load)
+    localStorage.setItem("companion_config", JSON.stringify(config));
+
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("start_companion", {

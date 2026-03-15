@@ -56,9 +56,9 @@ async fn start_companion(
     let state = app.state::<BackendProcess>();
     *state.0.lock().unwrap() = Some(backend);
 
-    // Hide config window
+    // Close config window (not hide — avoids stale React state when reopening)
     if let Some(config_win) = app.get_webview_window("config") {
-        let _ = config_win.hide();
+        let _ = config_win.close();
     }
 
     // Check if overlay already exists
@@ -123,27 +123,27 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
         let _ = overlay.close();
     }
 
-    // Show config window, or recreate it
+    // Recreate config window fresh (clean React state)
+    // Close any existing one first
     if let Some(config) = app.get_webview_window("config") {
-        let _ = config.show();
-        let _ = config.set_focus();
-    } else {
-        // Recreate — use a short delay so the overlay closes first
-        let app_handle = app.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(300));
-            let _ = tauri::WebviewWindowBuilder::new(
-                &app_handle,
-                "config",
-                tauri::WebviewUrl::App("index.html".into()),
-            )
-            .title("AI Gaming Companion")
-            .inner_size(480.0, 640.0)
-            .center()
-            .resizable(false)
-            .build();
-        });
+        let _ = config.close();
     }
+
+    // Spawn recreation in background thread to avoid blocking
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let _ = tauri::WebviewWindowBuilder::new(
+            &app_handle,
+            "config",
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .title("AI Gaming Companion")
+        .inner_size(480.0, 640.0)
+        .center()
+        .resizable(false)
+        .build();
+    });
 
     Ok(())
 }
