@@ -11,20 +11,29 @@ async fn start_companion(
     character: String,
     interval: f64,
 ) -> Result<(), String> {
-    // Start Python backend — find the repo root (parent of frontend/)
+    // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
-        let mut dir = std::env::current_exe()
-            .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
-        // Walk up until we find "backend" directory
-        loop {
-            if dir.join("backend").is_dir() {
-                break dir;
+        let candidates = [
+            std::env::current_exe().ok(),
+            std::env::current_dir().ok(),
+        ];
+        let mut found = None;
+        for start in candidates.into_iter().flatten() {
+            let mut dir = start;
+            loop {
+                if dir.join("backend").is_dir() {
+                    found = Some(dir);
+                    break;
+                }
+                if !dir.pop() {
+                    break;
+                }
             }
-            if !dir.pop() {
-                // Fallback: try common dev path
-                break std::path::PathBuf::from(r"C:\Dev\ai-game-overlay");
+            if found.is_some() {
+                break;
             }
         }
+        found.ok_or_else(|| "Could not find repo root (backend/ directory)".to_string())?
     };
 
     let backend = std::process::Command::new("python")

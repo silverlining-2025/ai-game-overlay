@@ -1,51 +1,117 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useReducer } from "react";
 import type { AppConfig, CompanionReaction } from "../types";
 import CharacterAvatar, { detectDetailedMood } from "../components/CharacterAvatar";
 import "./OverlayScreen.css";
+
+// Module-level Tauri imports (avoid dynamic import in hot paths)
+let tauriWindow: typeof import("@tauri-apps/api/window") | null = null;
+let tauriDpi: typeof import("@tauri-apps/api/dpi") | null = null;
+let tauriCore: typeof import("@tauri-apps/api/core") | null = null;
+
+// Load Tauri APIs once at module level
+(async () => {
+  try {
+    tauriWindow = await import("@tauri-apps/api/window");
+    tauriDpi = await import("@tauri-apps/api/dpi");
+    tauriCore = await import("@tauri-apps/api/core");
+  } catch {
+    // Not in Tauri environment
+  }
+})();
 
 interface Props {
   config: AppConfig;
 }
 
-export default function OverlayScreen({ config }: Props) {
-  const [reaction, setReaction] = useState<CompanionReaction | null>(null);
-  const [isThinking, setIsThinking] = useState(false);
-  const [displayText, setDisplayText] = useState("백엔드 연결 중...");
-  const [showBubble, setShowBubble] = useState(true);
-  const [connected, setConnected] = useState(false);
-  const [, setHistory] = useState<CompanionReaction[]>([]);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [detailedMood, setDetailedMood] = useState("chill");
-  const bubbleTimer = useRef<number | null>(null);
-  const typewriterRef = useRef<number | null>(null);
+// Consolidated state with useReducer (avoids batching issues in native callbacks)
+type OverlayState = {
+  connected: boolean;
+  isThinking: boolean;
+  showBubble: boolean;
+  isSpeaking: boolean;
+  detailedMood: string;
+  reaction: CompanionReaction | null;
+};
 
-  // Drag support — move the entire Tauri window
+type Action =
+  | { type: "CONNECTED" }
+  | { type: "DISCONNECTED" }
+  | { type: "THINKING" }
+  | { type: "RESPONSE"; payload: CompanionReaction }
+  | { type: "SPEAKING_DONE" }
+  | { type: "HIDE_BUBBLE" }
+  | { type: "TOGGLE_BUBBLE" }
+  | { type: "STATUS"; text: string }
+  | { type: "ERROR"; text: string };
+
+function overlayReducer(state: OverlayState, action: Action): OverlayState {
+  switch (action.type) {
+    case "CONNECTED":
+      return { ...state, connected: true };
+    case "DISCONNECTED":
+      return { ...state, connected: false, isThinking: false };
+    case "THINKING":
+      return { ...state, isThinking: true, showBubble: true };
+    case "RESPONSE":
+      return {
+        ...state,
+        reaction: action.payload,
+        isThinking: false,
+        showBubble: true,
+        isSpeaking: true,
+        detailedMood: detectDetailedMood(action.payload.text),
+      };
+    case "SPEAKING_DONE":
+      return { ...state, isSpeaking: false };
+    case "HIDE_BUBBLE":
+      return { ...state, showBubble: false };
+    case "TOGGLE_BUBBLE":
+      return { ...state, showBubble: !state.showBubble };
+    case "STATUS":
+    case "ERROR":
+      return { ...state, isThinking: false, showBubble: true };
+    default:
+      return state;
+  }
+}
+
+export default function OverlayScreen({ config }: Props) {
+  const [state, dispatch] = useReducer(overlayReducer, {
+    connected: false,
+    isThinking: false,
+    showBubble: true,
+    isSpeaking: false,
+    detailedMood: "chill",
+    reaction: null,
+  });
+
+  // DOM ref for typewriter (bypasses React render cycle)
+  const speechRef = useRef<HTMLDivElement>(null);
+  const typewriterRef = useRef<number | null>(null);
+  const bubbleTimer = useRef<number | null>(null);
+  const [statusText, setStatusText] = useState("백엔드 연결 중...");
+
+  // Drag support
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Don't drag if clicking a button
-    if ((e.target as HTMLElement).closest('.ctrl-btn')) return;
+    if ((e.target as HTMLElement).closest(".ctrl-btn")) return;
     isDragging.current = true;
     dragStart.current = { x: e.screenX, y: e.screenY };
   }, []);
 
   useEffect(() => {
     const handleMouseMove = async (e: MouseEvent) => {
-      if (!isDragging.current) return;
+      if (!isDragging.current || !tauriWindow || !tauriDpi) return;
       const dx = e.screenX - dragStart.current.x;
       const dy = e.screenY - dragStart.current.y;
       dragStart.current = { x: e.screenX, y: e.screenY };
       try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const win = getCurrentWindow();
+        const win = tauriWindow.getCurrentWindow();
         const pos = await win.outerPosition();
-        await win.setPosition(new (await import("@tauri-apps/api/dpi")).PhysicalPosition(
-          pos.x + dx, pos.y + dy
-        ));
-      } catch {
-        // Not in Tauri
-      }
+        await win.setPosition(new tauriDpi.PhysicalPosition(pos.x + dx, pos.y + dy));
+      } catch { /* ignore */ }
     };
     const handleMouseUp = () => { isDragging.current = false; };
     window.addEventListener("mousemove", handleMouseMove);
@@ -56,89 +122,15 @@ export default function OverlayScreen({ config }: Props) {
     };
   }, []);
 
-  // Connect to Python backend SSE stream with auto-reconnect
-  useEffect(() => {
-    let evtSource: EventSource | null = null;
-    let reconnectTimer: number | null = null;
-
-    function connect() {
-      evtSource = new EventSource("http://localhost:8080/stream");
-
-      evtSource.onopen = () => {
-        setConnected(true);
-        setDisplayText("연결됨! 화면 분석 시작...");
-      };
-
-      evtSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.type === "thinking") {
-          setIsThinking(true);
-          setShowBubble(true);
-        } else if (data.type === "status") {
-          setDisplayText(data.text);
-          setShowBubble(true);
-        } else if (data.type === "response") {
-        const r: CompanionReaction = {
-          text: data.text,
-          face: data.face,
-          mood: detectMood(data.text),
-          cycle: data.cycle,
-          elapsedMs: data.elapsed_ms,
-          costEstimate: data.cost_estimate || "?",
-        };
-        setReaction(r);
-        setIsThinking(false);
-        setShowBubble(true);
-        setDetailedMood(detectDetailedMood(r.text));
-        setIsSpeaking(true);
-
-        // Add to history
-        setHistory((prev) => [r, ...prev].slice(0, 5));
-
-        // Typewriter effect — mark speaking done when finished
-        typewriteText(r.text, () => setIsSpeaking(false));
-
-        // Auto-hide bubble after 8 seconds
-        if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
-        bubbleTimer.current = window.setTimeout(() => {
-          setShowBubble(false);
-        }, 8000);
-      } else if (data.type === "error") {
-        setIsThinking(false);
-        setDisplayText(data.text);
-        setShowBubble(true);
-      }
-    };
-
-      evtSource.onerror = () => {
-        setConnected(false);
-        setIsThinking(false);
-        evtSource?.close();
-        // Auto-reconnect after 2s
-        reconnectTimer = window.setTimeout(connect, 2000);
-      };
-    }
-
-    // Initial connect with small delay to let backend start
-    reconnectTimer = window.setTimeout(connect, 1500);
-
-    return () => {
-      evtSource?.close();
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
-      if (typewriterRef.current) clearInterval(typewriterRef.current);
-    };
-  }, []);
-
+  // Typewriter using DOM ref (no React re-renders per character)
   function typewriteText(text: string, onDone?: () => void) {
     if (typewriterRef.current) clearInterval(typewriterRef.current);
     let i = 0;
-    setDisplayText("");
+    if (speechRef.current) speechRef.current.textContent = "";
     typewriterRef.current = window.setInterval(() => {
       if (i < text.length) {
         i++;
-        setDisplayText(text.substring(0, i));
+        if (speechRef.current) speechRef.current.textContent = text.substring(0, i);
       } else {
         if (typewriterRef.current) clearInterval(typewriterRef.current);
         if (onDone) onDone();
@@ -146,49 +138,93 @@ export default function OverlayScreen({ config }: Props) {
     }, 22);
   }
 
-  function detectMood(text: string): CompanionReaction["mood"] {
-    const keywords: Record<string, string[]> = {
-      excited: ["대박", "미쳤", "개쩔", "레전", "헐", "ㄷㄷ", "!!"],
-      curious: ["뭐", "왜", "어떻게", "신기", "?"],
-      worried: ["조심", "위험", "HP", "피", "죽", "도망"],
-      amused: ["ㅋㅋ", "ㅎㅎ", "웃"],
+  // SSE connection with auto-reconnect
+  useEffect(() => {
+    const evtSourceRef = { current: null as EventSource | null };
+    let reconnectTimer: number | null = null;
+
+    function connect() {
+      const es = new EventSource("http://localhost:8080/stream");
+      evtSourceRef.current = es;
+
+      es.onopen = () => {
+        dispatch({ type: "CONNECTED" });
+        setStatusText("연결됨! 화면 분석 시작...");
+        if (speechRef.current) speechRef.current.textContent = "연결됨! 화면 분석 시작...";
+      };
+
+      es.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "thinking") {
+          dispatch({ type: "THINKING" });
+        } else if (data.type === "status") {
+          setStatusText(data.text);
+          if (speechRef.current) speechRef.current.textContent = data.text;
+        } else if (data.type === "response") {
+          const r: CompanionReaction = {
+            text: data.text,
+            face: data.face,
+            mood: "chill",
+            cycle: data.cycle,
+            elapsedMs: data.elapsed_ms,
+            costEstimate: data.cost_estimate || "?",
+          };
+          dispatch({ type: "RESPONSE", payload: r });
+          typewriteText(r.text, () => dispatch({ type: "SPEAKING_DONE" }));
+
+          if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+          bubbleTimer.current = window.setTimeout(() => {
+            dispatch({ type: "HIDE_BUBBLE" });
+          }, 8000);
+        } else if (data.type === "error") {
+          dispatch({ type: "ERROR", text: data.text });
+          setStatusText(data.text);
+          if (speechRef.current) speechRef.current.textContent = data.text;
+        }
+        // Ignore heartbeat
+      };
+
+      es.onerror = () => {
+        dispatch({ type: "DISCONNECTED" });
+        es.close();
+        reconnectTimer = window.setTimeout(connect, 2000);
+      };
+    }
+
+    reconnectTimer = window.setTimeout(connect, 1500);
+
+    return () => {
+      evtSourceRef.current?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+      if (typewriterRef.current) clearInterval(typewriterRef.current);
     };
-    for (const [mood, kws] of Object.entries(keywords)) {
-      if (kws.some((k) => text.includes(k))) {
-        return mood as CompanionReaction["mood"];
-      }
-    }
-    return "chill";
-  }
+  }, []);
 
-  const positionClass = `overlay-${config.position}`;
-
-  const handleStop = async () => {
+  const handleStop = useCallback(async () => {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("stop_companion");
+      await tauriCore?.invoke("stop_companion");
     } catch {
       window.close();
     }
-  };
+  }, []);
 
-  const handleQuit = async () => {
+  const handleQuit = useCallback(async () => {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("quit_app");
+      await tauriCore?.invoke("quit_app");
     } catch {
       window.close();
     }
-  };
+  }, []);
 
   return (
-    <div className={`overlay-root ${positionClass}`}>
+    <div className={`overlay-root overlay-${config.position}`}>
       <div
-        className={`companion-widget ${showBubble ? "expanded" : ""} ${isThinking ? "thinking" : ""}`}
+        className={`companion-widget ${state.showBubble ? "expanded" : ""} ${state.isThinking ? "thinking" : ""}`}
         onMouseDown={handleMouseDown}
         style={{ cursor: "grab" }}
       >
-        {/* Control buttons — always visible */}
         <div className="overlay-controls">
           <button type="button" className="ctrl-btn" onClick={handleStop} title="설정으로 돌아가기">
             ⚙
@@ -198,35 +234,32 @@ export default function OverlayScreen({ config }: Props) {
           </button>
         </div>
 
-        <div className="avatar-container" onClick={() => setShowBubble(!showBubble)}>
+        <div className="avatar-container" onClick={() => dispatch({ type: "TOGGLE_BUBBLE" })}>
           <CharacterAvatar
             character={config.character}
-            mood={isThinking ? "thinking" : detailedMood as any}
-            isSpeaking={isSpeaking}
+            mood={state.isThinking ? "thinking" : state.detailedMood as any}
+            isSpeaking={state.isSpeaking}
           />
         </div>
 
-        {showBubble && (
+        {state.showBubble && (
           <div className="speech-bubble">
-            {isThinking ? (
+            {state.isThinking ? (
               <div className="thinking-text">생각 중...</div>
             ) : (
-              <div className="speech-text">
-                {displayText}
-                {displayText.length < (reaction?.text.length || 0) && (
-                  <span className="cursor" />
-                )}
+              <div className="speech-text" ref={speechRef}>
+                {statusText}
               </div>
             )}
-            {reaction && !isThinking && (
+            {state.reaction && !state.isThinking && (
               <div className="bubble-meta">
-                #{reaction.cycle} | {reaction.elapsedMs}ms |{" "}
-                <span className="cost">${reaction.costEstimate}</span>
+                #{state.reaction.cycle} | {state.reaction.elapsedMs}ms |{" "}
+                <span className="cost">${state.reaction.costEstimate}</span>
               </div>
             )}
           </div>
         )}
-        <div className={`connection-dot ${connected ? "connected" : ""}`} />
+        <div className={`connection-dot ${state.connected ? "connected" : ""}`} />
       </div>
     </div>
   );
