@@ -293,6 +293,7 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=3.0)
     parser.add_argument("--history", type=int, default=5)
     parser.add_argument("--game", type=str, default="general")
+    parser.add_argument("--character", type=str, default="nozomi")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--popup", action="store_true", help="Open as compact popup overlay (Chrome app mode)")
     parser.add_argument("--headless", action="store_true", help="Don't open a browser (for Tauri frontend)")
@@ -355,7 +356,7 @@ def main() -> None:
             time.sleep(0.1)
 
         client = anthropic.Anthropic()
-        system_prompt = get_system_prompt(args.game)
+        system_prompt = get_system_prompt(args.game, args.character)
         # Fast-game profile: short memory, reactive, not narrative
         history: deque[str] = deque(maxlen=2)
         prev_frame = None

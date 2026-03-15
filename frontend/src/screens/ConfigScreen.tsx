@@ -42,6 +42,7 @@ export default function ConfigScreen({ onStart }: Props) {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("start_companion", {
         game: config.game,
+        character: config.character,
         interval: config.interval,
       });
     } catch {

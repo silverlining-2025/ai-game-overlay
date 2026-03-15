@@ -8,6 +8,7 @@ struct BackendProcess(Mutex<Option<std::process::Child>>);
 async fn start_companion(
     app: tauri::AppHandle,
     game: String,
+    character: String,
     interval: f64,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root (parent of frontend/)
@@ -31,6 +32,7 @@ async fn start_companion(
             "-m", "backend.tools.web_overlay",
             "--game", &game,
             "--interval", &interval.to_string(),
+            "--character", &character,
             "--port", "8080",
             "--headless",
             "--save-training",
