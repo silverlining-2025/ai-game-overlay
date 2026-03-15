@@ -348,6 +348,19 @@ def main() -> None:
             except Exception:
                 pass
 
+    def _frame_diff_pct(f1, f2) -> float:
+        """Percentage of pixels that changed significantly between frames."""
+        import cv2
+        import numpy as np
+        g1 = cv2.cvtColor(f1, cv2.COLOR_BGR2GRAY)
+        g2 = cv2.cvtColor(f2, cv2.COLOR_BGR2GRAY)
+        # Resize to small for fast comparison
+        g1 = cv2.resize(g1, (160, 90))
+        g2 = cv2.resize(g2, (160, 90))
+        diff = cv2.absdiff(g1, g2)
+        changed = (diff > 25).sum()  # threshold: 25/255
+        return changed / diff.size * 100
+
     def ai_loop():
         cap = create_capture()
         for _ in range(10):
@@ -356,17 +369,32 @@ def main() -> None:
             time.sleep(0.1)
 
         client = anthropic.Anthropic()
-        system_prompt = get_system_prompt(args.game, args.character)
-        # Fast-game profile: short memory, reactive, not narrative
-        history: deque[str] = deque(maxlen=2)
+        base_system_prompt = get_system_prompt(args.game, args.character)
+
+        # --- Research-backed state ---
         prev_frame = None
         total_input_tokens = 0
         total_output_tokens = 0
+        cycle = 0
+        skipped = 0
 
-        broadcast({"type": "status", "text": f"ready | {args.game} | {args.interval}s cycle"})
+        # Structured state summary (ReViSe pattern)
+        game_state = {
+            "scene": "unknown",      # current scene/area
+            "activity": "unknown",   # what player is doing
+            "mood": "neutral",       # character's current mood
+            "notable": "",           # last notable event
+        }
+
+        # Rolling dialogue history (for anti-repetition only)
+        history: deque[str] = deque(maxlen=2)
+
+        # Character re-anchoring counter
+        REANCHOR_EVERY = 7
+
+        broadcast({"type": "status", "text": f"ready | {args.game} | {args.character} | {args.interval}s"})
         time.sleep(1)
 
-        cycle = 0
         while not _SHUTDOWN.is_set():
             frame = cap.grab()
             if frame is not None:
@@ -377,49 +405,115 @@ def main() -> None:
                 continue
 
             cycle += 1
+
+            # --- Stage 0: Frame diff gating ---
+            if prev_frame is not None:
+                diff_pct = _frame_diff_pct(prev_frame, frame)
+                if diff_pct < 3.0:
+                    # Screen barely changed — skip this cycle
+                    skipped += 1
+                    if skipped < 3:
+                        # Silent skip
+                        if _SHUTDOWN.wait(timeout=args.interval):
+                            break
+                        continue
+                    # After 3 consecutive skips, let it through for idle chat
+                    skipped = 0
+                else:
+                    skipped = 0
+
             broadcast({"type": "thinking"})
 
             try:
-                # Build API request
+                # --- Stage 1: Build context (1 image + text state, not 2-3 images) ---
                 img_b64 = frame_to_base64(frame)
-                ui_b64 = crop_ui_region(frame, args.game)
 
                 user_content = []
-                if prev_frame is not None:
-                    user_content.append({"type": "text", "text": "[이전 화면]"})
-                    user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": frame_to_base64(prev_frame)}})
-
-                user_content.append({"type": "text", "text": "[지금 화면]"})
                 user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
 
-                if ui_b64:
-                    user_content.append({"type": "text", "text": "[좌하단 UI 확대]"})
-                    user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": ui_b64}})
-
-                # Fast-game context: event-focused, ignore static UI
-                instruction = (
-                    "이전 화면과 비교해서 변화/이벤트에만 반응해. "
-                    "항상 있는 UI(HP바, 아이콘, 퀵슬롯)는 묘사 금지 — 변화가 생겼을 때만. "
-                    "아무 변화 없으면 게임 관련 자연스러운 잡담. "
-                    "같은 말 반복 금지."
+                # Structured state summary instead of previous frame image
+                state_text = (
+                    f"[게임 상태]\n"
+                    f"장면: {game_state['scene']}\n"
+                    f"활동: {game_state['activity']}\n"
+                    f"최근 이벤트: {game_state['notable'] or '없음'}\n"
+                    f"캐릭터 기분: {game_state['mood']}\n"
                 )
-                if history:
-                    history_text = "\n".join(f"- {h}" for h in history)
-                    user_content.append({"type": "text", "text": f"직전 반응 (반복 방지용):\n{history_text}\n\n{instruction}"})
-                else:
-                    user_content.append({"type": "text", "text": instruction})
 
+                # Anti-repetition
+                if history:
+                    state_text += "\n직전 반응 (반복 금지):\n" + "\n".join(f"- {h}" for h in history)
+
+                # Instruction
+                state_text += (
+                    "\n\n위 상태와 화면을 비교해서:\n"
+                    "1. 변화가 있으면 → 이벤트에 반응 (캐릭터답게)\n"
+                    "2. 변화가 없으면 → 게임 관련 자연스러운 잡담\n"
+                    "3. 절대 고정 UI(HP바, 아이콘) 묘사 금지\n\n"
+                    "응답 형식 (반드시 이 형식으로):\n"
+                    "[장면: 한 단어] [활동: 한 단어] [이벤트: 있으면 짧게, 없으면 '없음'] [기분: 한 단어]\n"
+                    "대사: (캐릭터 대사 1-2문장)"
+                )
+
+                user_content.append({"type": "text", "text": state_text})
+
+                # --- Character re-anchoring every N cycles ---
+                system_prompt = base_system_prompt
+                if cycle % REANCHOR_EVERY == 0:
+                    system_prompt += (
+                        f"\n\n[리마인더] 넌 '{args.character}'야. "
+                        "캐릭터 말투와 성격을 유지해. 절대 분석적/설명적으로 말하지 마."
+                    )
+
+                # --- Stage 2: API call (single image, text state = cheaper) ---
                 t0 = time.perf_counter()
                 response = client.messages.create(
                     model="claude-haiku-4-5-20251001",
-                    max_tokens=100,
+                    max_tokens=120,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_content}],
                 )
                 elapsed_ms = (time.perf_counter() - t0) * 1000
-                text = response.content[0].text.strip()
+                raw_text = response.content[0].text.strip()
 
-                # Track costs (Haiku: $1/M input, $5/M output)
+                # --- Stage 3: Parse structured response ---
+                # Extract state updates and dialogue
+                dialogue = raw_text
+                for line in raw_text.split("\n"):
+                    line = line.strip()
+                    if line.startswith("[장면:"):
+                        # Parse state updates
+                        import re
+                        m = re.findall(r'\[장면:\s*(.+?)\]', line)
+                        if m:
+                            game_state["scene"] = m[0].strip()
+                        m = re.findall(r'\[활동:\s*(.+?)\]', line)
+                        if m:
+                            game_state["activity"] = m[0].strip()
+                        m = re.findall(r'\[이벤트:\s*(.+?)\]', line)
+                        if m and m[0].strip() != "없음":
+                            game_state["notable"] = m[0].strip()
+                        m = re.findall(r'\[기분:\s*(.+?)\]', line)
+                        if m:
+                            game_state["mood"] = m[0].strip()
+                    elif line.startswith("대사:"):
+                        dialogue = line[3:].strip()
+                    elif not line.startswith("["):
+                        # Fallback: if no format, use the whole thing as dialogue
+                        if dialogue == raw_text:
+                            dialogue = line
+
+                # Clean up — sometimes the model includes the format tags in dialogue
+                if dialogue.startswith("[") and "대사:" in dialogue:
+                    dialogue = dialogue.split("대사:")[-1].strip()
+                if not dialogue or dialogue == raw_text:
+                    # No structured format — use raw text, strip any metadata lines
+                    lines = [l for l in raw_text.split("\n") if not l.strip().startswith("[")]
+                    dialogue = " ".join(l.strip() for l in lines if l.strip())
+                    if not dialogue:
+                        dialogue = raw_text
+
+                # Track costs
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
@@ -427,18 +521,18 @@ def main() -> None:
 
                 prev_frame = frame
 
-                # Save training data: screenshot + response
+                # Save training data
                 if args.save_training:
-                    _save_training_pair(frame, text, cycle, args.game)
-                history.append(text)
+                    _save_training_pair(frame, dialogue, cycle, args.game)
+                history.append(dialogue)
 
-                # Send smaller screenshot for browser display
+                # Send to frontend
                 display_b64 = frame_to_base64(frame, max_size=640, quality=60)
 
                 broadcast({
                     "type": "response",
-                    "text": text,
-                    "face": pick_face(text),
+                    "text": dialogue,
+                    "face": pick_face(dialogue),
                     "cycle": cycle,
                     "elapsed_ms": round(elapsed_ms),
                     "interval": args.interval,
