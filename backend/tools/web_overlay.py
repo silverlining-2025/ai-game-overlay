@@ -260,6 +260,34 @@ evtSource.onerror = () => { status.textContent = 'disconnected...'; };
 </html>"""
 
 
+def _save_training_pair(frame, text: str, cycle: int, game: str) -> None:
+    """Save screenshot + AI response as a training pair."""
+    import cv2
+    from datetime import datetime
+
+    train_dir = _REPO_ROOT / "training_data" / game / datetime.now().strftime("%Y%m%d")
+    train_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now().strftime("%H%M%S")
+    prefix = f"{ts}_c{cycle:04d}"
+
+    # Save screenshot
+    cv2.imwrite(str(train_dir / f"{prefix}.jpg"), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
+    # Append to JSONL log (one line per pair)
+    log_path = train_dir / "responses.jsonl"
+    import json
+    entry = {
+        "cycle": cycle,
+        "timestamp": datetime.now().isoformat(),
+        "image": f"{prefix}.jpg",
+        "response": text,
+        "game": game,
+    }
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Web AI Companion Overlay")
     parser.add_argument("--interval", type=float, default=3.0)
@@ -268,6 +296,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--popup", action="store_true", help="Open as compact popup overlay (Chrome app mode)")
     parser.add_argument("--headless", action="store_true", help="Don't open a browser (for Tauri frontend)")
+    parser.add_argument("--save-training", action="store_true", dest="save_training",
+                        help="Save screenshots + AI responses as training data")
     args = parser.parse_args()
 
     import anthropic
@@ -395,6 +425,10 @@ def main() -> None:
                 cost_str = f"{cost:.4f}"
 
                 prev_frame = frame
+
+                # Save training data: screenshot + response
+                if args.save_training:
+                    _save_training_pair(frame, text, cycle, args.game)
                 history.append(text)
 
                 # Send smaller screenshot for browser display

@@ -34,6 +34,20 @@ Thumbs.db
 .env.local
 *.key
 
+# Training data (screenshots + responses)
+training_data/
+
+# Debug artifacts
+debug/
+debug_*.png
+
+# PyInstaller
+backend/dist/
+backend/build/
+
+# Models (large files)
+backend/models/
+
 # Test artifacts
 backend/tests/fixtures/*.tmp
 htmlcov/

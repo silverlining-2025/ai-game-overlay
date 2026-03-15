@@ -33,6 +33,7 @@ async fn start_companion(
             "--interval", &interval.to_string(),
             "--port", "8080",
             "--headless",
+            "--save-training",
         ])
         .current_dir(&repo_root)
         .spawn()
@@ -65,7 +66,7 @@ async fn start_companion(
     .skip_taskbar(false)  // Show in taskbar so user can find it
     .resizable(false)
     .shadow(false)
-    .inner_size(600.0, 250.0)
+    .inner_size(620.0, 320.0)
     .position(40.0, 40.0)
     .build()
     .map_err(|e| e.to_string())?;
