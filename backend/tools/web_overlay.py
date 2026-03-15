@@ -376,39 +376,15 @@ def main() -> None:
     thread.start()
 
     base_url = f"http://localhost:{args.port}"
-    overlay_url = f"{base_url}?mode=overlay"
+    log.info("Starting server on %s (game=%s, char=%s)", base_url, args.game, args.character)
 
-    print(f"\n  AI Companion running:")
-    print(f"  Full view (2nd monitor): {base_url}")
-    print(f"  Compact overlay:         {overlay_url}")
-    print(f"  Game: {args.game} | Interval: {args.interval}s")
-    print(f"  Ctrl+C to stop\n")
-
-    # Auto-open browser (skip if --headless, i.e. Tauri is the frontend)
-    import webbrowser
-    if args.headless:
-        pass
-    elif args.popup:
-        # Try to open as a small popup window via Chrome app mode
-        import subprocess
-        chrome_paths = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        ]
-        opened = False
-        for cp in chrome_paths:
-            if Path(cp).exists():
-                subprocess.Popen([
-                    cp, f"--app={overlay_url}",
-                    "--window-size=420,200",
-                    "--window-position=20,20",
-                ])
-                opened = True
-                break
-        if not opened:
-            webbrowser.open(overlay_url)
-    else:
-        webbrowser.open(base_url)
+    # Auto-open browser (skip if --headless)
+    if not args.headless and not args.popup:
+        try:
+            import webbrowser
+            webbrowser.open(base_url)
+        except Exception:
+            pass
 
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
 

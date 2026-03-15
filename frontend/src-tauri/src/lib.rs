@@ -38,6 +38,9 @@ async fn start_companion(
         found.ok_or_else(|| "Could not find repo root (backend/ directory)".to_string())?
     };
 
+    // Log the repo root for debugging
+    eprintln!("[tauri] repo_root: {:?}", repo_root);
+
     let backend = std::process::Command::new("python")
         .args([
             "-m", "backend.tools.web_overlay",
@@ -49,8 +52,10 @@ async fn start_companion(
             "--save-training",
         ])
         .current_dir(&repo_root)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .spawn()
-        .map_err(|e| format!("Failed to start Python backend: {}", e))?;
+        .map_err(|e| format!("Failed to start Python backend (cwd={:?}): {}", repo_root, e))?;
 
     // Store the process handle so we can kill it later
     let state = app.state::<BackendProcess>();
