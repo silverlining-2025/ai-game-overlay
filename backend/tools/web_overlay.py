@@ -1,11 +1,15 @@
-"""Web-based AI companion overlay — serves the overlay as a browser page.
+"""Web-based AI companion overlay — event-driven architecture.
 
-Screen capture + Claude Vision runs locally. Results stream to browser via SSE.
-Open the browser on any device on the same network to see the overlay.
+5-layer pipeline:
+  L1: Local CV event detection (~3ms, free)
+  L2: Personality engine (timing, emotions, routing)
+  L3: Claude Haiku API (on-demand, variable tokens)
+  L4: Natural timing (delays, cooldowns)
+  L5: Edge TTS voice output (optional)
 
 Usage:
     python -m backend.tools.web_overlay --game palworld
-    python -m backend.tools.web_overlay --game palworld --port 8080
+    python -m backend.tools.web_overlay --game palworld --tts
 """
 
 from __future__ import annotations
@@ -16,8 +20,8 @@ import atexit
 import base64
 import io
 import json
+import logging
 import os
-import random
 import signal
 import sys
 import threading
@@ -27,6 +31,14 @@ from collections import deque
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
+
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("overlay")
 
 # --- Global kill switch: ensures API calls stop immediately on exit ---
 _SHUTDOWN = threading.Event()
@@ -299,6 +311,7 @@ def main() -> None:
     parser.add_argument("--headless", action="store_true", help="Don't open a browser (for Tauri frontend)")
     parser.add_argument("--save-training", action="store_true", dest="save_training",
                         help="Save screenshots + AI responses as training data")
+    parser.add_argument("--tts", action="store_true", help="Enable voice output (Edge TTS)")
     args = parser.parse_args()
 
     import anthropic
@@ -365,6 +378,16 @@ def main() -> None:
         detector = EventDetector(game=args.game)
         personality = PersonalityEngine()
 
+        # Optional TTS
+        tts = None
+        if args.tts:
+            try:
+                from backend.tts.engine import TTSEngine
+                tts = TTSEngine(character=args.character)
+                log.info("TTS enabled: %s", tts.voice)
+            except Exception as e:
+                log.warning("TTS init failed: %s", e)
+
         total_input_tokens = 0
         total_output_tokens = 0
         cycle = 0
@@ -375,6 +398,7 @@ def main() -> None:
 
         REANCHOR_EVERY = 7
 
+        log.info("Pipeline ready: game=%s char=%s tts=%s", args.game, args.character, bool(tts))
         broadcast({"type": "status", "text": f"ready | {args.game} | {args.character} | event-driven"})
         time.sleep(1)
 
@@ -459,6 +483,14 @@ def main() -> None:
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                 cost_str = f"{cost:.4f}"
 
+                log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
+                         cycle, mode.value, elapsed_ms, signal.label, signal.score, dialogue[:60])
+
+                # TTS voice output
+                if tts and dialogue:
+                    emotion = personality.state.emotions.dominant()
+                    tts.speak(dialogue, emotion=emotion)
+
                 # Save training data
                 if args.save_training:
                     _save_training_pair(frame, dialogue, cycle, args.game)
@@ -490,9 +522,18 @@ def main() -> None:
             if _SHUTDOWN.wait(timeout=wait):
                 break
 
-    # Start AI loop in background thread
+    # SSE heartbeat to prevent connection timeouts
+    def heartbeat_loop():
+        while not _SHUTDOWN.is_set():
+            broadcast({"type": "heartbeat"})
+            if _SHUTDOWN.wait(timeout=15):
+                break
+
+    # Start AI loop + heartbeat in background threads
     thread = threading.Thread(target=ai_loop, daemon=True)
     thread.start()
+    hb_thread = threading.Thread(target=heartbeat_loop, daemon=True)
+    hb_thread.start()
 
     base_url = f"http://localhost:{args.port}"
     overlay_url = f"{base_url}?mode=overlay"

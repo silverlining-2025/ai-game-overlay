@@ -1,137 +1,224 @@
 """Personality engine — controls WHEN and HOW the character speaks.
 
+Based on research:
+- OCC emotion model: multi-axis emotional state with decay
+- Dynamic response delays increase perceived humanness (ECIS 2018)
+- PogChampNet-style excitement accumulation
+- Neuro-sama timing patterns
+
 Mimics human viewing behavior:
-- Silent most of the time
-- Instant reactions to big events
-- Delayed reactions to medium events
+- Silent most of the time (~80%)
+- Instant bursts for surprising events
+- Delayed reactions for medium events
 - Idle chatter when nothing happens
-- Excitement momentum (doesn't reset to neutral instantly)
+- Emotional momentum (doesn't reset instantly)
 - Cooldowns (won't comment twice in 2s)
 """
 
 from __future__ import annotations
 
+import logging
 import random
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 
+log = logging.getLogger(__name__)
+
 
 class ResponseMode(Enum):
-    SILENT = "silent"         # Don't say anything
-    BURST = "burst"           # Quick exclamation (max_tokens: 25)
-    REACT = "react"           # Normal reaction (max_tokens: 80)
-    CHAT = "chat"             # Idle chatter (max_tokens: 60)
+    SILENT = "silent"
+    BURST = "burst"     # Quick exclamation (max_tokens: 25)
+    REACT = "react"     # Normal reaction (max_tokens: 80)
+    CHAT = "chat"       # Idle chatter (max_tokens: 60)
+
+
+@dataclass
+class EmotionalState:
+    """Multi-axis emotional state (OCC model simplified).
+
+    All values 0.0 ~ 1.0, decay over time, boosted by events.
+    """
+    excitement: float = 0.0     # High-energy positive (big plays, clutch moments)
+    tension: float = 0.0        # Anxiety/focus (low HP, boss fight, risky plays)
+    amusement: float = 0.0      # Humor (weird deaths, funny moments, glitches)
+    concern: float = 0.0        # Worry (repeated failures, bad decisions)
+
+    def dominant(self) -> str:
+        """Return the strongest emotion."""
+        emotions = {
+            "excitement": self.excitement,
+            "tension": self.tension,
+            "amusement": self.amusement,
+            "concern": self.concern,
+        }
+        best = max(emotions, key=emotions.get)
+        if emotions[best] < 0.15:
+            return "calm"
+        return best
+
+    def intensity(self) -> float:
+        """Overall emotional intensity (0~1)."""
+        return min(1.0, max(self.excitement, self.tension, self.amusement, self.concern))
+
+    def label_kr(self) -> str:
+        """Korean label for the current emotional state."""
+        d = self.dominant()
+        labels = {
+            "excitement": "흥분",
+            "tension": "긴장",
+            "amusement": "재미",
+            "concern": "걱정",
+            "calm": "평온",
+        }
+        return labels.get(d, "평온")
+
+    def decay(self, dt: float = 1.0):
+        """Apply time-based decay to all emotions."""
+        rate = 0.08 * dt  # decay rate per second
+        self.excitement = max(0, self.excitement - rate)
+        self.tension = max(0, self.tension - rate * 0.5)  # tension decays slower
+        self.amusement = max(0, self.amusement - rate * 1.2)  # amusement decays faster
+        self.concern = max(0, self.concern - rate * 0.7)
 
 
 @dataclass
 class PersonalityState:
-    """Tracks the character's emotional/timing state."""
-    excitement: float = 0.0       # 0.0 ~ 1.0, decays over time
-    last_speak_time: float = 0.0  # timestamp of last utterance
-    last_event_time: float = 0.0  # timestamp of last detected event
-    idle_since: float = 0.0       # how long since last significant event
-    speak_count: int = 0          # total utterances this session
-    consecutive_silences: int = 0 # how many cycles we've been quiet
-    pending_thought: str = ""     # held thought to deliver later
+    """Tracks timing and utterance state."""
+    last_speak_time: float = 0.0
+    last_event_time: float = 0.0
+    speak_count: int = 0
+    consecutive_silences: int = 0
+    emotions: EmotionalState = field(default_factory=EmotionalState)
 
 
 class PersonalityEngine:
-    """Decides when to speak, how urgently, and with what energy."""
+    """Decides when to speak, how urgently, and with what energy.
+
+    Uses event scores from the CV detector + emotional state to route
+    to different response modes with natural timing.
+    """
 
     def __init__(self):
         self.state = PersonalityState()
-        self.state.last_speak_time = time.time()
-        self.state.last_event_time = time.time()
-        self.state.idle_since = time.time()
+        now = time.time()
+        self.state.last_speak_time = now
+        self.state.last_event_time = now
+        self._last_update = now
 
         # Tunable parameters
-        self.cooldown_sec = 2.0          # min seconds between utterances
-        self.idle_chat_after = 12.0      # seconds of silence before idle chat
-        self.excitement_decay = 0.15     # per-cycle decay
+        self.cooldown_sec = 2.5          # min seconds between utterances
+        self.burst_cooldown_sec = 1.0    # shorter cooldown for bursts
+        self.idle_chat_after = 15.0      # seconds of silence before idle chat
         self.burst_threshold = 0.7       # event score to trigger burst
         self.react_threshold = 0.4       # event score to trigger react
 
     def decide(self, event_score: float, event_label: str) -> tuple[ResponseMode, dict]:
-        """Given an event score, decide what to do.
-
-        Returns (mode, config) where config has:
-          max_tokens, temperature, delay_sec, prompt_hint
-        """
+        """Given an event score, decide what to do."""
         now = time.time()
-        since_last_speak = now - self.state.last_speak_time
-        since_last_event = now - self.state.last_event_time
+        dt = now - self._last_update
+        self._last_update = now
 
-        # Update excitement (decay toward 0, boost on events)
-        self.state.excitement = max(0, self.state.excitement - self.excitement_decay)
-        if event_score > 0.4:
-            self.state.excitement = min(1.0, self.state.excitement + event_score * 0.5)
+        since_speak = now - self.state.last_speak_time
+        since_event = now - self.state.last_event_time
+
+        # Decay emotions
+        self.state.emotions.decay(dt)
+
+        # Boost emotions based on event
+        self._apply_event_boost(event_score, event_label)
+
+        # Track event timing
+        if event_score > 0.3:
             self.state.last_event_time = now
-            self.state.idle_since = now
 
         # --- Decision logic ---
 
-        # Cooldown check — don't spam
-        if since_last_speak < self.cooldown_sec and event_score < self.burst_threshold:
-            self.state.consecutive_silences += 1
-            return ResponseMode.SILENT, {}
-
-        # BIG EVENT — instant burst reaction
-        if event_score >= self.burst_threshold:
+        # BIG EVENT — burst reaction (short cooldown)
+        if event_score >= self.burst_threshold and since_speak >= self.burst_cooldown_sec:
             self.state.last_speak_time = now
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
+            mood = self.state.emotions.label_kr()
             return ResponseMode.BURST, {
                 "max_tokens": 25,
                 "temperature": 0.8,
-                "delay_sec": 0,
-                "prompt_hint": "짧게! 감탄사 위주! 1문장!",
+                "delay_sec": random.uniform(0, 0.3),
+                "prompt_hint": f"짧게! 감탄사 위주! 1문장! (기분: {mood})",
             }
 
-        # MEDIUM EVENT — normal reaction with slight delay
-        if event_score >= self.react_threshold:
-            delay = random.uniform(0.3, 1.5)
+        # MEDIUM EVENT — normal reaction (standard cooldown)
+        if event_score >= self.react_threshold and since_speak >= self.cooldown_sec:
+            delay = random.uniform(0.5, 2.0)
             self.state.last_speak_time = now
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
+            mood = self.state.emotions.label_kr()
+            intensity = self.state.emotions.intensity()
             return ResponseMode.REACT, {
                 "max_tokens": 80,
-                "temperature": 0.7,
+                "temperature": 0.6 + intensity * 0.3,  # more intense = more creative
                 "delay_sec": delay,
-                "prompt_hint": "화면 변화에 반응. 캐릭터답게.",
+                "prompt_hint": f"화면 변화에 반응. 캐릭터답게. (기분: {mood})",
             }
 
-        # IDLE — nothing happening for a while
-        if since_last_event > self.idle_chat_after and since_last_speak > self.idle_chat_after:
-            # Don't idle chat too often
-            if random.random() < 0.4:  # 40% chance to speak during idle
+        # Cooldown — stay quiet
+        if since_speak < self.cooldown_sec:
+            self.state.consecutive_silences += 1
+            return ResponseMode.SILENT, {}
+
+        # IDLE — nothing for a while
+        if since_event > self.idle_chat_after and since_speak > self.idle_chat_after * 0.8:
+            # Random chance to chat — more likely the longer we've been quiet
+            idle_probability = min(0.5, 0.1 + (since_speak - self.idle_chat_after) * 0.05)
+            if random.random() < idle_probability:
                 self.state.last_speak_time = now
                 self.state.speak_count += 1
                 self.state.consecutive_silences = 0
-                self.state.idle_since = now
                 return ResponseMode.CHAT, {
                     "max_tokens": 60,
                     "temperature": 0.9,
-                    "delay_sec": random.uniform(1, 3),
+                    "delay_sec": random.uniform(1.5, 4.0),
                     "prompt_hint": (
                         "화면에 특별한 건 없음. 게임 관련 잡담, 독백, 혼잣말. "
-                        "캐릭터 성격에 맞는 자연스러운 한마디."
+                        "캐릭터 성격에 맞는 자연스러운 한마디. "
+                        "화면 묘사 금지."
                     ),
                 }
 
-        # MINOR or nothing — stay quiet
+        # Nothing to say
         self.state.consecutive_silences += 1
         return ResponseMode.SILENT, {}
 
-    def get_excitement_label(self) -> str:
-        """Human-readable excitement level."""
-        e = self.state.excitement
-        if e > 0.8:
-            return "극도로 흥분"
-        elif e > 0.5:
-            return "흥분"
-        elif e > 0.3:
-            return "관심"
-        elif e > 0.1:
-            return "약간 관심"
-        return "평온"
+    def _apply_event_boost(self, score: float, label: str):
+        """Boost emotional state based on event type."""
+        e = self.state.emotions
+
+        if label == "scene_change":
+            e.excitement = min(1.0, e.excitement + 0.4)
+        elif label == "major":
+            e.excitement = min(1.0, e.excitement + 0.5)
+            e.tension = min(1.0, e.tension + 0.2)
+        elif label == "event":
+            e.excitement = min(1.0, e.excitement + 0.25)
+        elif label == "ui_event":
+            e.tension = min(1.0, e.tension + 0.15)
+        elif label == "idle" and self.state.consecutive_silences > 10:
+            # Long idle — build slight concern/boredom
+            e.concern = min(0.3, e.concern + 0.02)
+
+    def get_emotion_context(self) -> str:
+        """Return a short emotional context string for the prompt."""
+        e = self.state.emotions
+        parts = []
+        if e.excitement > 0.3:
+            parts.append(f"흥분({e.excitement:.0%})")
+        if e.tension > 0.3:
+            parts.append(f"긴장({e.tension:.0%})")
+        if e.amusement > 0.3:
+            parts.append(f"재미({e.amusement:.0%})")
+        if e.concern > 0.3:
+            parts.append(f"걱정({e.concern:.0%})")
+        if not parts:
+            return "평온"
+        return " + ".join(parts)

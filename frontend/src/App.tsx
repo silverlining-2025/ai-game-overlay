@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ConfigScreen from "./screens/ConfigScreen";
 import OverlayScreen from "./screens/OverlayScreen";
+import ErrorBoundary from "./components/ErrorBoundary";
 import type { AppConfig } from "./types";
 import "./App.css";
 
@@ -13,8 +14,12 @@ export default function App() {
     if (window.location.hash === "#overlay") {
       const saved = localStorage.getItem("companion_config");
       if (saved) {
-        setConfig(JSON.parse(saved));
-        setMode("overlay");
+        try {
+          setConfig(JSON.parse(saved));
+          setMode("overlay");
+        } catch {
+          console.error("Failed to parse saved config");
+        }
       }
     }
 
@@ -22,8 +27,8 @@ export default function App() {
     const handleKey = async (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         try {
-          const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          await getCurrentWindow().close();
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("quit_app");
         } catch {
           window.close();
         }
@@ -40,7 +45,11 @@ export default function App() {
   };
 
   if (mode === "overlay" && config) {
-    return <OverlayScreen config={config} />;
+    return (
+      <ErrorBoundary>
+        <OverlayScreen config={config} />
+      </ErrorBoundary>
+    );
   }
 
   return <ConfigScreen onStart={handleStart} />;
