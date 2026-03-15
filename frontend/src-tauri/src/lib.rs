@@ -215,8 +215,6 @@ pub fn run() {
 
             Ok(())
         })
-        // Don't exit when windows close — let tray icon and quit_app handle exit
-        )
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
