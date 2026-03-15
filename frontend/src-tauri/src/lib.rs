@@ -56,17 +56,16 @@ async fn start_companion(
     let state = app.state::<BackendProcess>();
     *state.0.lock().unwrap() = Some(backend);
 
-    // Close config window (not hide — avoids stale React state when reopening)
-    if let Some(config_win) = app.get_webview_window("config") {
-        let _ = config_win.close();
-    }
-
     // Check if overlay already exists
     if app.get_webview_window("overlay").is_some() {
+        // Just close config
+        if let Some(config_win) = app.get_webview_window("config") {
+            let _ = config_win.close();
+        }
         return Ok(());
     }
 
-    // Create overlay window — NOT click-through so user can interact
+    // Create overlay FIRST (before closing config, so app doesn't exit)
     let overlay = tauri::WebviewWindowBuilder::new(
         &app,
         "overlay",
@@ -102,8 +101,10 @@ async fn start_companion(
         }
     }
 
-    // Don't set click-through — let user interact with quit/config buttons
-    let _ = overlay;
+    // Now close config window (overlay exists, so app won't exit)
+    if let Some(config_win) = app.get_webview_window("config") {
+        let _ = config_win.close();
+    }
 
     Ok(())
 }
@@ -214,21 +215,8 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let app = window.app_handle();
-                let label = window.label().to_string();
-
-                // If config window is closed and no overlay exists, quit
-                if label == "config" && app.get_webview_window("overlay").is_none() {
-                    let state = app.state::<BackendProcess>();
-                    if let Some(mut child) = state.0.lock().unwrap().take() {
-                        let _ = child.kill();
-                    }
-                    app.exit(0);
-                }
-            }
-        })
+        // Don't exit when windows close — let tray icon and quit_app handle exit
+        )
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
