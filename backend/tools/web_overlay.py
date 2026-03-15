@@ -134,7 +134,7 @@ def main() -> None:
 
     import anthropic
     import uvicorn
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import HTMLResponse
     from sse_starlette.sse import EventSourceResponse
@@ -161,7 +161,7 @@ def main() -> None:
         return {"status": "shutting down"}
 
     @app.get("/stream")
-    async def stream(request):
+    async def stream(request: Request):
         q: asyncio.Queue = asyncio.Queue(maxsize=10)
         clients.append(q)
 
