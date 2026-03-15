@@ -134,7 +134,7 @@ def main() -> None:
 
     import anthropic
     import uvicorn
-    from fastapi import FastAPI, Request
+    from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import HTMLResponse
     from sse_starlette.sse import EventSourceResponse
@@ -161,20 +161,20 @@ def main() -> None:
         return {"status": "shutting down"}
 
     @app.get("/stream")
-    async def stream(request: Request):
+    async def stream():
         q: asyncio.Queue = asyncio.Queue(maxsize=10)
         clients.append(q)
 
         async def event_gen():
             try:
-                while not await request.is_disconnected():
+                while True:
                     try:
-                        data = await asyncio.wait_for(q.get(), timeout=1.0)
+                        data = await asyncio.wait_for(q.get(), timeout=30.0)
                         yield {"data": json.dumps(data, ensure_ascii=False)}
                     except asyncio.TimeoutError:
-                        continue
+                        yield {"data": json.dumps({"type": "heartbeat"})}
             except asyncio.CancelledError:
-                raise  # always re-raise for proper cleanup
+                raise
             finally:
                 if q in clients:
                     clients.remove(q)
