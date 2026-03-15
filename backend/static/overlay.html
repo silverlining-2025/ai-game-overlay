@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Companion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
+    color: #f0f0ff;
+    overflow: hidden;
+  }
+  .container {
+    border: 2px solid #6d28d9;
+    border-radius: 12px;
+    background: #13132bee;
+    padding: 14px 18px;
+    margin: 8px;
+    box-shadow: 0 0 30px rgba(109, 40, 217, 0.2);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .container.flash {
+    border-color: #a855f7;
+    box-shadow: 0 0 50px rgba(168, 85, 247, 0.5);
+  }
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .face {
+    font-family: 'Consolas', monospace;
+    font-size: 28px;
+    font-weight: bold;
+    color: #c084fc;
+    transition: transform 0.2s;
+  }
+  .face.bounce { animation: bounce 0.4s ease; }
+  @keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+  .status { font-size: 10px; color: #4a4a6a; text-align: right; }
+  .status .cost { color: #22c55e; font-weight: bold; }
+  .speech { font-size: 15px; line-height: 1.6; min-height: 36px; color: #e8e8f0; }
+  .cursor {
+    display: inline-block; width: 2px; height: 1em;
+    background: #c084fc; margin-left: 2px;
+    animation: blink 0.6s infinite; vertical-align: text-bottom;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  .thinking .face { animation: pulse 0.8s infinite alternate; }
+  @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+  .screen { width: 100%; border-radius: 6px; margin-top: 10px; border: 1px solid #2a2a4a; }
+  .history { margin-top: 8px; padding-top: 8px; border-top: 1px solid #1a1a2e; max-height: 120px; overflow-y: auto; }
+  .hist-item { font-size: 11px; color: #5a5a8a; padding: 2px 0; border-bottom: 1px solid #0f0f1e; }
+  .hist-face { margin-right: 6px; font-size: 13px; }
+  body.overlay-mode .screen, body.overlay-mode .history { display: none; }
+  body.overlay-mode .container { background: #13132bdd; }
+  body.overlay-mode { background: transparent; }
+</style>
+</head>
+<body>
+<div class="container" id="container">
+  <div class="top-row">
+    <div class="face" id="face">( ˘ω˘ )</div>
+    <div class="status" id="status">connecting...</div>
+  </div>
+  <div class="speech" id="speech">연결 중...<span class="cursor"></span></div>
+  <img class="screen" id="screen" alt="capture" style="display:none">
+  <div class="history" id="history"></div>
+</div>
+<script>
+const face = document.getElementById('face');
+const speech = document.getElementById('speech');
+const status = document.getElementById('status');
+const container = document.getElementById('container');
+const screenImg = document.getElementById('screen');
+const historyEl = document.getElementById('history');
+
+const params = new URLSearchParams(window.location.search);
+if (params.get('mode') === 'overlay') document.body.classList.add('overlay-mode');
+
+let typewriterTimer = null;
+function typewrite(text) {
+  if (typewriterTimer) clearInterval(typewriterTimer);
+  let i = 0;
+  speech.innerHTML = '<span class="cursor"></span>';
+  typewriterTimer = setInterval(() => {
+    if (i < text.length) {
+      speech.innerHTML = text.substring(0, i + 1) + '<span class="cursor"></span>';
+      i++;
+    } else { clearInterval(typewriterTimer); speech.textContent = text; }
+  }, 22);
+}
+
+function flashBorder() {
+  container.classList.add('flash');
+  setTimeout(() => container.classList.remove('flash'), 600);
+}
+
+function bounceFace() {
+  face.classList.remove('bounce');
+  void face.offsetWidth;
+  face.classList.add('bounce');
+}
+
+function addHistory(f, text) {
+  const item = document.createElement('div');
+  item.className = 'hist-item';
+  item.innerHTML = '<span class="hist-face">' + f + '</span>' + text;
+  historyEl.prepend(item);
+  while (historyEl.children.length > 5) historyEl.removeChild(historyEl.lastChild);
+}
+
+const evtSource = new EventSource('/stream');
+evtSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'thinking') {
+    container.classList.add('thinking');
+  } else if (data.type === 'response') {
+    container.classList.remove('thinking');
+    face.textContent = data.face;
+    bounceFace(); typewrite(data.text); flashBorder();
+    addHistory(data.face, data.text);
+    if (data.screenshot && !document.body.classList.contains('overlay-mode')) {
+      screenImg.src = 'data:image/jpeg;base64,' + data.screenshot;
+      screenImg.style.display = 'block';
+    }
+    const cost = data.cost_estimate || '?';
+    status.innerHTML = '#' + data.cycle + ' | ' + data.elapsed_ms + 'ms | <span class="cost">$' + cost + '</span>';
+  } else if (data.type === 'error') {
+    container.classList.remove('thinking');
+    face.textContent = '(×_×)';
+    speech.textContent = data.text;
+  } else if (data.type === 'status') {
+    status.textContent = data.text;
+  }
+};
+evtSource.onerror = () => { status.textContent = 'disconnected...'; };
+</script>
+</body>
+</html>

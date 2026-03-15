@@ -1,4 +1,6 @@
 use tauri::Manager;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
 use std::sync::Mutex;
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
@@ -167,6 +169,48 @@ pub fn run() {
             stop_companion,
             quit_app,
         ])
+        .setup(|app| {
+            // System tray
+            let show = MenuItem::with_id(app, "show", "오버레이 보기/숨기기", true, None::<&str>)?;
+            let config_item = MenuItem::with_id(app, "config", "설정", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &config_item, &quit_item])?;
+
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("AI Gaming Companion")
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(overlay) = app.get_webview_window("overlay") {
+                                if overlay.is_visible().unwrap_or(false) {
+                                    let _ = overlay.hide();
+                                } else {
+                                    let _ = overlay.show();
+                                }
+                            }
+                        }
+                        "config" => {
+                            if let Some(config) = app.get_webview_window("config") {
+                                let _ = config.show();
+                                let _ = config.set_focus();
+                            }
+                        }
+                        "quit" => {
+                            let state = app.state::<BackendProcess>();
+                            if let Some(mut child) = state.0.lock().unwrap().take() {
+                                let _ = child.kill();
+                            }
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
         .on_window_event(|window, event| {
             // When config window is closed, quit everything
             if let tauri::WindowEvent::CloseRequested { .. } = event {

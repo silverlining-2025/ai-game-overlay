@@ -136,7 +136,6 @@ class PersonalityEngine:
 
         # BIG EVENT — burst reaction (short cooldown)
         if event_score >= self.burst_threshold and since_speak >= self.burst_cooldown_sec:
-            self.state.last_speak_time = now
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
             mood = self.state.emotions.label_kr()
@@ -150,7 +149,6 @@ class PersonalityEngine:
         # MEDIUM EVENT — normal reaction (standard cooldown)
         if event_score >= self.react_threshold and since_speak >= self.cooldown_sec:
             delay = random.uniform(0.5, 2.0)
-            self.state.last_speak_time = now
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
             mood = self.state.emotions.label_kr()
@@ -172,7 +170,6 @@ class PersonalityEngine:
             # Random chance to chat — more likely the longer we've been quiet
             idle_probability = min(0.5, 0.1 + (since_speak - self.idle_chat_after) * 0.05)
             if random.random() < idle_probability:
-                self.state.last_speak_time = now
                 self.state.speak_count += 1
                 self.state.consecutive_silences = 0
                 return ResponseMode.CHAT, {
@@ -206,6 +203,10 @@ class PersonalityEngine:
         elif label == "idle" and self.state.consecutive_silences > 10:
             # Long idle — build slight concern/boredom
             e.concern = min(0.3, e.concern + 0.02)
+
+    def mark_spoken(self):
+        """Call AFTER a successful API response to update the cooldown timer."""
+        self.state.last_speak_time = time.time()
 
     def get_emotion_context(self) -> str:
         """Return a short emotional context string for the prompt."""

@@ -73,204 +73,21 @@ if _env_path.exists():
 # Import prompts from live_overlay
 from backend.tools.live_overlay import (
     get_system_prompt,
-    FACES,
-    MOOD_KEYWORDS,
+    detect_mood,
     pick_face,
     frame_to_base64,
     crop_ui_region,
 )
 
-# ---------- HTML page ----------
-HTML_PAGE = """<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Companion</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0a0a1a;
-    font-family: 'Malgun Gothic', 'Segoe UI', sans-serif;
-    color: #f0f0ff;
-    overflow: hidden;
-  }
-  /* Two modes: ?mode=overlay (compact, no screenshot) vs default (full, with screenshot) */
-  .container {
-    border: 2px solid #6d28d9;
-    border-radius: 12px;
-    background: #13132bee;
-    padding: 14px 18px;
-    margin: 8px;
-    box-shadow: 0 0 30px rgba(109, 40, 217, 0.2);
-    transition: border-color 0.3s, box-shadow 0.3s;
-  }
-  .container.flash {
-    border-color: #a855f7;
-    box-shadow: 0 0 50px rgba(168, 85, 247, 0.5);
-  }
-  .top-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-  }
-  .face {
-    font-family: 'Consolas', monospace;
-    font-size: 28px;
-    font-weight: bold;
-    color: #c084fc;
-    transition: transform 0.2s;
-  }
-  .face.bounce { animation: bounce 0.4s ease; }
-  @keyframes bounce {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.2); }
-  }
-  .status {
-    font-size: 10px;
-    color: #4a4a6a;
-    text-align: right;
-  }
-  .status .cost { color: #22c55e; font-weight: bold; }
-  .speech {
-    font-size: 15px;
-    line-height: 1.6;
-    min-height: 36px;
-    color: #e8e8f0;
-  }
-  .cursor {
-    display: inline-block;
-    width: 2px;
-    height: 1em;
-    background: #c084fc;
-    margin-left: 2px;
-    animation: blink 0.6s infinite;
-    vertical-align: text-bottom;
-  }
-  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-  .thinking .face { animation: pulse 0.8s infinite alternate; }
-  @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
-  .screen {
-    width: 100%;
-    border-radius: 6px;
-    margin-top: 10px;
-    border: 1px solid #2a2a4a;
-  }
-  .history {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid #1a1a2e;
-    max-height: 120px;
-    overflow-y: auto;
-  }
-  .hist-item {
-    font-size: 11px;
-    color: #5a5a8a;
-    padding: 2px 0;
-    border-bottom: 1px solid #0f0f1e;
-  }
-  .hist-face { margin-right: 6px; font-size: 13px; }
-  /* Hide elements based on mode */
-  body.overlay-mode .screen,
-  body.overlay-mode .history { display: none; }
-  body.overlay-mode .container { background: #13132bdd; }
-  body.overlay-mode { background: transparent; }
-</style>
-</head>
-<body>
-<div class="container" id="container">
-  <div class="top-row">
-    <div class="face" id="face">( ˘ω˘ )</div>
-    <div class="status" id="status">connecting...</div>
-  </div>
-  <div class="speech" id="speech">연결 중...<span class="cursor"></span></div>
-  <img class="screen" id="screen" alt="capture" style="display:none">
-  <div class="history" id="history"></div>
-</div>
-<script>
-const face = document.getElementById('face');
-const speech = document.getElementById('speech');
-const status = document.getElementById('status');
-const container = document.getElementById('container');
-const screenImg = document.getElementById('screen');
-const historyEl = document.getElementById('history');
+# ---------- HTML page (loaded from file) ----------
+_STATIC_DIR = _REPO_ROOT / "backend" / "static"
 
-// Check URL param for overlay mode (compact, no screenshot)
-const params = new URLSearchParams(window.location.search);
-const isOverlay = params.get('mode') === 'overlay';
-if (isOverlay) document.body.classList.add('overlay-mode');
 
-let typewriterTimer = null;
-
-function typewrite(text) {
-  if (typewriterTimer) clearInterval(typewriterTimer);
-  let i = 0;
-  speech.innerHTML = '<span class="cursor"></span>';
-  typewriterTimer = setInterval(() => {
-    if (i < text.length) {
-      speech.innerHTML = text.substring(0, i + 1) + '<span class="cursor"></span>';
-      i++;
-    } else {
-      clearInterval(typewriterTimer);
-      typewriterTimer = null;
-      speech.textContent = text;
-    }
-  }, 22);
-}
-
-function flashBorder() {
-  container.classList.add('flash');
-  setTimeout(() => container.classList.remove('flash'), 600);
-}
-
-function bounceFace() {
-  face.classList.remove('bounce');
-  void face.offsetWidth;
-  face.classList.add('bounce');
-}
-
-function addHistory(f, text) {
-  const item = document.createElement('div');
-  item.className = 'hist-item';
-  item.innerHTML = '<span class="hist-face">' + f + '</span>' + text;
-  historyEl.prepend(item);
-  while (historyEl.children.length > 5) historyEl.removeChild(historyEl.lastChild);
-}
-
-const evtSource = new EventSource('/stream');
-
-evtSource.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-
-  if (data.type === 'thinking') {
-    container.classList.add('thinking');
-  } else if (data.type === 'response') {
-    container.classList.remove('thinking');
-    face.textContent = data.face;
-    bounceFace();
-    typewrite(data.text);
-    flashBorder();
-    addHistory(data.face, data.text);
-    if (data.screenshot && !isOverlay) {
-      screenImg.src = 'data:image/jpeg;base64,' + data.screenshot;
-      screenImg.style.display = 'block';
-    }
-    const cost = data.cost_estimate || '?';
-    status.innerHTML = '#' + data.cycle + ' | ' + data.elapsed_ms + 'ms | <span class="cost">$' + cost + '</span>';
-  } else if (data.type === 'error') {
-    container.classList.remove('thinking');
-    face.textContent = '(×_×)';
-    speech.textContent = data.text;
-  } else if (data.type === 'status') {
-    status.textContent = data.text;
-  }
-};
-
-evtSource.onerror = () => { status.textContent = 'disconnected...'; };
-</script>
-</body>
-</html>"""
+def _load_html_page() -> str:
+    html_path = _STATIC_DIR / "overlay.html"
+    if html_path.exists():
+        return html_path.read_text(encoding="utf-8")
+    return "<html><body><h1>overlay.html not found</h1></body></html>"
 
 
 def _save_training_pair(frame, text: str, cycle: int, game: str) -> None:
@@ -335,7 +152,7 @@ def main() -> None:
 
     @app.get("/", response_class=HTMLResponse)
     async def index():
-        return HTML_PAGE
+        return _load_html_page()
 
     @app.post("/shutdown")
     async def shutdown():
@@ -505,6 +322,7 @@ def main() -> None:
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 dialogue = response.content[0].text.strip()
                 api_calls += 1
+                personality.mark_spoken()  # Update cooldown AFTER successful response
 
                 # Track costs
                 total_input_tokens += response.usage.input_tokens
@@ -532,6 +350,7 @@ def main() -> None:
                     "type": "response",
                     "text": dialogue,
                     "face": pick_face(dialogue),
+                    "mood": detect_mood(dialogue),
                     "cycle": cycle,
                     "elapsed_ms": round(elapsed_ms),
                     "interval": args.interval,

@@ -72,7 +72,28 @@ REACTION_RULES = (
     "- 애매한 건 '저거', '뭔가' 등으로 넘어가. 틀리느니 대충."
 )
 
-CHARACTER_PROMPTS = {
+def _load_characters_from_yaml() -> dict[str, str]:
+    """Load character prompts from YAML config file."""
+    import yaml
+    yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
+    if not yaml_path.exists():
+        return {}
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    prompts = {}
+    for char_id, char_data in data.items():
+        name = char_data.get("name", char_id)
+        desc = char_data.get("description", "")
+        personality = char_data.get("personality", "")
+        speech = char_data.get("speech_style", "")
+        prompts[char_id] = f"넌 '{name}'야. {desc}\n\n{personality}\n{speech}"
+    return prompts
+
+
+# Load character prompts from YAML (with inline fallback)
+_YAML_CHARACTERS = _load_characters_from_yaml()
+
+CHARACTER_PROMPTS = _YAML_CHARACTERS if _YAML_CHARACTERS else {
     "nozomi": (
         "넌 '노조미'야. 게임 잘 아는 여자 친구. 옆에서 같이 보면서 반응하는 사람.\n\n"
         "=== 성격 ===\n"
@@ -184,12 +205,12 @@ CHARACTER_PROMPTS = {
     ),
 }
 
-# Default to nozomi if character not found
 DEFAULT_CHARACTER = "nozomi"
 
 
 def _get_character_prompt(character: str) -> str:
-    return CHARACTER_PROMPTS.get(character, CHARACTER_PROMPTS[DEFAULT_CHARACTER]) + REACTION_RULES
+    default = CHARACTER_PROMPTS.get(DEFAULT_CHARACTER, "넌 게임 친구야.")
+    return CHARACTER_PROMPTS.get(character, default) + REACTION_RULES
 
 GAME_CONTEXTS = {
     "palworld": (
@@ -320,10 +341,37 @@ MOOD_KEYWORDS = {
 }
 
 
-def pick_face(text: str) -> str:
-    for mood, keywords in MOOD_KEYWORDS.items():
+DETAILED_MOOD_KEYWORDS = {
+    "angry": ["짜증", "화나", "뭐야", "ㅡㅡ"],
+    "disgusted": ["역겹", "에반", "더럽", "우웩"],
+    "blush": ["부끄", "헤헤", "귀엽"],
+    "pout": ["에이", "치", "흥", "삐짐"],
+    "excited": ["대박", "미쳤", "개쩔", "레전", "헐", "ㄷㄷ", "!!", "와아", "쩌"],
+    "worried": ["조심", "위험", "HP", "피", "죽", "도망", "에러"],
+    "amused": ["ㅋㅋ", "ㅎㅎ", "웃", "ㄹㅇ"],
+    "curious": ["뭐", "왜", "어떻게", "신기", "궁금", "?"],
+    "sad": ["슬프", "아쉽", "ㅠㅠ", "ㅜㅜ"],
+}
+
+
+def detect_mood(text: str) -> str:
+    """Single source of truth for mood detection from Korean text."""
+    for mood, keywords in DETAILED_MOOD_KEYWORDS.items():
         if any(k in text for k in keywords):
-            return random.choice(FACES[mood])
+            return mood
+    return "chill"
+
+
+def pick_face(text: str) -> str:
+    mood = detect_mood(text)
+    # Map detailed moods to face categories
+    face_map = {
+        "angry": "worried", "disgusted": "worried", "sad": "worried",
+        "blush": "amused", "pout": "curious",
+    }
+    face_mood = face_map.get(mood, mood)
+    if face_mood in FACES:
+        return random.choice(FACES[face_mood])
     return random.choice(FACES["chill"])
 
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useReducer } from "react";
 import type { AppConfig, CompanionReaction } from "../types";
-import CharacterAvatar, { detectDetailedMood } from "../components/CharacterAvatar";
+import CharacterAvatar from "../components/CharacterAvatar";
 import "./OverlayScreen.css";
 
 // Module-level Tauri imports (avoid dynamic import in hot paths)
@@ -59,7 +59,7 @@ function overlayReducer(state: OverlayState, action: Action): OverlayState {
         isThinking: false,
         showBubble: true,
         isSpeaking: true,
-        detailedMood: detectDetailedMood(action.payload.text),
+        detailedMood: action.payload.mood || "chill",
       };
     case "SPEAKING_DONE":
       return { ...state, isSpeaking: false };
@@ -138,6 +138,26 @@ export default function OverlayScreen({ config }: Props) {
     }, 22);
   }
 
+  // Click-through toggle: hold Alt to interact with overlay
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Alt" && tauriWindow) {
+        tauriWindow.getCurrentWindow().setIgnoreCursorEvents(false);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Alt" && tauriWindow) {
+        tauriWindow.getCurrentWindow().setIgnoreCursorEvents(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
   // SSE connection with auto-reconnect
   useEffect(() => {
     const evtSourceRef = { current: null as EventSource | null };
@@ -165,7 +185,7 @@ export default function OverlayScreen({ config }: Props) {
           const r: CompanionReaction = {
             text: data.text,
             face: data.face,
-            mood: "chill",
+            mood: data.mood || "chill",
             cycle: data.cycle,
             elapsedMs: data.elapsed_ms,
             costEstimate: data.cost_estimate || "?",
