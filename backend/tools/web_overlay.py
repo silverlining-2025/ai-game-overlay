@@ -348,20 +348,10 @@ def main() -> None:
             except Exception:
                 pass
 
-    def _frame_diff_pct(f1, f2) -> float:
-        """Percentage of pixels that changed significantly between frames."""
-        import cv2
-        import numpy as np
-        g1 = cv2.cvtColor(f1, cv2.COLOR_BGR2GRAY)
-        g2 = cv2.cvtColor(f2, cv2.COLOR_BGR2GRAY)
-        # Resize to small for fast comparison
-        g1 = cv2.resize(g1, (160, 90))
-        g2 = cv2.resize(g2, (160, 90))
-        diff = cv2.absdiff(g1, g2)
-        changed = (diff > 25).sum()  # threshold: 25/255
-        return changed / diff.size * 100
-
     def ai_loop():
+        from backend.cv.event_detector import EventDetector
+        from backend.personality.engine import PersonalityEngine, ResponseMode
+
         cap = create_capture()
         for _ in range(10):
             if cap.grab() is not None:
@@ -371,19 +361,21 @@ def main() -> None:
         client = anthropic.Anthropic()
         base_system_prompt = get_system_prompt(args.game, args.character)
 
-        prev_frame = None
+        # Layered architecture
+        detector = EventDetector(game=args.game)
+        personality = PersonalityEngine()
+
         total_input_tokens = 0
         total_output_tokens = 0
         cycle = 0
-        skipped = 0
+        api_calls = 0
 
-        # Only keep last 2 responses for anti-repetition — no accumulated state
+        # Anti-repetition only
         history: deque[str] = deque(maxlen=2)
 
-        # Character re-anchoring counter
         REANCHOR_EVERY = 7
 
-        broadcast({"type": "status", "text": f"ready | {args.game} | {args.character} | {args.interval}s"})
+        broadcast({"type": "status", "text": f"ready | {args.game} | {args.character} | event-driven"})
         time.sleep(1)
 
         while not _SHUTDOWN.is_set():
@@ -392,70 +384,80 @@ def main() -> None:
                 frame = frame.copy()
 
             if frame is None:
-                time.sleep(1)
+                time.sleep(0.5)
                 continue
 
             cycle += 1
 
-            # --- Stage 0: Frame diff gating ---
-            if prev_frame is not None:
-                diff_pct = _frame_diff_pct(prev_frame, frame)
-                if diff_pct < 1.5:
-                    # Screen barely changed — skip this cycle
-                    skipped += 1
-                    if skipped < 5:
-                        # Silent skip
-                        if _SHUTDOWN.wait(timeout=args.interval):
-                            break
-                        continue
-                    # After 3 consecutive skips, let it through for idle chat
-                    skipped = 0
-                else:
-                    skipped = 0
+            # --- Layer 1: Local CV event detection (~3ms, free) ---
+            signal = detector.analyze(frame)
+
+            # --- Layer 2: Personality engine decides response ---
+            mode, config = personality.decide(signal.score, signal.label)
+
+            if mode == ResponseMode.SILENT:
+                # Stay quiet — check again after short interval
+                if _SHUTDOWN.wait(timeout=0.5):
+                    break
+                continue
+
+            # We're going to speak — optional delay for natural feel
+            delay = config.get("delay_sec", 0)
+            if delay > 0:
+                if _SHUTDOWN.wait(timeout=delay):
+                    break
 
             broadcast({"type": "thinking"})
 
             try:
-                # --- Single image + minimal context ---
+                # --- Layer 3: Claude API call (event-driven, variable tokens) ---
                 img_b64 = frame_to_base64(frame)
+                max_tokens = config.get("max_tokens", 80)
+                temperature = config.get("temperature", 0.7)
+                prompt_hint = config.get("prompt_hint", "")
 
                 user_content = []
                 user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
 
-                # Simple instruction — no accumulated state, no structured format
                 prompt_text = ""
                 if history:
-                    prompt_text += "직전 반응 (반복 금지):\n" + "\n".join(f"- {h}" for h in history) + "\n\n"
-                prompt_text += "화면 보고 캐릭터답게 반응해. 1-2문장만."
+                    prompt_text += "직전 (반복 금지): " + " / ".join(history) + "\n\n"
+                if prompt_hint:
+                    prompt_text += prompt_hint
+                else:
+                    prompt_text += "화면 보고 캐릭터답게 반응."
+
+                # Add excitement context
+                excitement = personality.get_excitement_label()
+                if excitement != "평온":
+                    prompt_text += f"\n(지금 기분: {excitement})"
 
                 user_content.append({"type": "text", "text": prompt_text})
 
-                # Character re-anchoring every N cycles
+                # Re-anchoring
                 system_prompt = base_system_prompt
-                if cycle % REANCHOR_EVERY == 0:
+                if api_calls % REANCHOR_EVERY == 0:
                     system_prompt += (
                         f"\n\n[리마인더] 넌 '{args.character}'야. "
-                        "캐릭터 말투와 성격 유지. 분석/설명 금지. 대사만."
+                        "캐릭터 유지. 분석/설명 금지. 대사만."
                     )
 
-                # --- API call ---
                 t0 = time.perf_counter()
                 response = client.messages.create(
                     model="claude-haiku-4-5-20251001",
-                    max_tokens=80,
+                    max_tokens=max_tokens,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_content}],
                 )
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 dialogue = response.content[0].text.strip()
+                api_calls += 1
 
                 # Track costs
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                 cost_str = f"{cost:.4f}"
-
-                prev_frame = frame
 
                 # Save training data
                 if args.save_training:
@@ -474,12 +476,18 @@ def main() -> None:
                     "interval": args.interval,
                     "screenshot": display_b64,
                     "cost_estimate": cost_str,
+                    "event": signal.label,
+                    "event_score": round(signal.score, 2),
+                    "mode": mode.value,
+                    "excitement": personality.get_excitement_label(),
                 })
 
             except Exception as ex:
                 broadcast({"type": "error", "text": f"에러: {ex}"})
 
-            if _SHUTDOWN.wait(timeout=args.interval):
+            # Variable interval based on mode
+            wait = 0.5 if mode == ResponseMode.BURST else args.interval
+            if _SHUTDOWN.wait(timeout=wait):
                 break
 
     # Start AI loop in background thread
