@@ -290,18 +290,17 @@ def main() -> None:
                 user_content = []
                 user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
 
-                prompt_text = ""
+                prompt_text = "지금 이 화면만 봐. 이전 내용 전부 무시.\n"
                 if history:
-                    prompt_text += "직전 (반복 금지): " + " / ".join(history) + "\n\n"
+                    prompt_text += "직전 말 (반복만 피해): " + history[-1][:30] + "\n"
                 if prompt_hint:
                     prompt_text += prompt_hint
                 else:
                     prompt_text += "화면 보고 캐릭터답게 반응."
 
-                # Add excitement context
                 excitement = personality.get_emotion_context()
                 if excitement != "평온":
-                    prompt_text += f"\n(지금 기분: {excitement})"
+                    prompt_text += f"\n(기분: {excitement})"
 
                 user_content.append({"type": "text", "text": prompt_text})
 

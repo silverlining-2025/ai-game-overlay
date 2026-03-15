@@ -140,10 +140,10 @@ class PersonalityEngine:
             self.state.consecutive_silences = 0
             mood = self.state.emotions.label_kr()
             return ResponseMode.BURST, {
-                "max_tokens": 25,
+                "max_tokens": 50,
                 "temperature": 0.8,
                 "delay_sec": random.uniform(0, 0.3),
-                "prompt_hint": f"짧게! 감탄사 위주! 1문장! (기분: {mood})",
+                "prompt_hint": f"짧게! 1문장! (기분: {mood})",
             }
 
         # MEDIUM EVENT — normal reaction (standard cooldown)
@@ -154,10 +154,10 @@ class PersonalityEngine:
             mood = self.state.emotions.label_kr()
             intensity = self.state.emotions.intensity()
             return ResponseMode.REACT, {
-                "max_tokens": 80,
-                "temperature": 0.6 + intensity * 0.3,  # more intense = more creative
+                "max_tokens": 120,
+                "temperature": 0.6 + intensity * 0.3,
                 "delay_sec": delay,
-                "prompt_hint": f"화면 변화에 반응. 캐릭터답게. (기분: {mood})",
+                "prompt_hint": f"화면 변화에 반응. 1-2문장. (기분: {mood})",
             }
 
         # Cooldown — stay quiet
@@ -173,7 +173,7 @@ class PersonalityEngine:
                 self.state.speak_count += 1
                 self.state.consecutive_silences = 0
                 return ResponseMode.CHAT, {
-                    "max_tokens": 60,
+                    "max_tokens": 100,
                     "temperature": 0.9,
                     "delay_sec": random.uniform(1.5, 4.0),
                     "prompt_hint": (
