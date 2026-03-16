@@ -89,6 +89,7 @@ export default function OverlayScreen({ config }: Props) {
   const speechRef = useRef<HTMLDivElement>(null);
   const typewriterRef = useRef<number | null>(null);
   const bubbleTimer = useRef<number | null>(null);
+  const isStreamingRef = useRef(false);
   const [statusText, setStatusText] = useState("");
   const [debugInfo, setDebugInfo] = useState("");
 
@@ -184,10 +185,12 @@ export default function OverlayScreen({ config }: Props) {
         } else if (data.type === "stream_start") {
           if (typewriterRef.current) clearInterval(typewriterRef.current);
           if (speechRef.current) speechRef.current.textContent = "";
+          isStreamingRef.current = true;
           dispatch({ type: "THINKING" });
         } else if (data.type === "stream_chunk") {
-          // First chunk transitions from thinking to speaking
-          if (state.isThinking) {
+          // First chunk transitions from thinking to showing text
+          if (isStreamingRef.current) {
+            isStreamingRef.current = false;
             dispatch({
               type: "RESPONSE",
               payload: {
