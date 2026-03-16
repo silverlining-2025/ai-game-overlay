@@ -32,9 +32,10 @@ export default function ConfigScreen({ onStart }: Props) {
   const [character, setCharacter] = useState<AppConfig["character"]>("nozomi");
   const [game, setGame] = useState<AppConfig["game"]>("palworld");
   const [position, setPosition] = useState<AppConfig["position"]>("top-right");
+  const [chattiness, setChattiness] = useState(0.5);
 
   const handleStart = async () => {
-    const config: AppConfig = { game, character, interval: 3, position };
+    const config: AppConfig = { game, character, interval: 3, position, chattiness };
 
     // Save config BEFORE creating overlay window (overlay reads this on load)
     localStorage.setItem("companion_config", JSON.stringify(config));
@@ -45,6 +46,7 @@ export default function ConfigScreen({ onStart }: Props) {
         game: config.game,
         character: config.character,
         interval: 3.0,
+        chattiness: config.chattiness,
       });
     } catch {
       // Not in Tauri
@@ -104,6 +106,20 @@ export default function ConfigScreen({ onStart }: Props) {
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </select>
+        </div>
+
+        <div className="config-section">
+          <label className="config-label">
+            수다 레벨: {chattiness < 0.3 ? "조용" : chattiness < 0.7 ? "보통" : "수다쟁이"}
+          </label>
+          <input
+            type="range"
+            className="config-slider"
+            title="수다 레벨"
+            min={0} max={1} step={0.1}
+            value={chattiness}
+            onChange={(e) => setChattiness(parseFloat(e.target.value))}
+          />
         </div>
 
         <p className="config-hint">

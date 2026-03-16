@@ -90,6 +90,26 @@ def _load_html_page() -> str:
     return "<html><body><h1>overlay.html not found</h1></body></html>"
 
 
+def _get_template_response(event_label: str, mode, character: str) -> str | None:
+    """Pre-written instant responses for common events. Returns None to use API instead."""
+    import random
+    from backend.personality.engine import ResponseMode
+
+    # Only use templates for BURST mode on clear events
+    if mode != ResponseMode.BURST:
+        return None
+
+    templates = {
+        # Templates are per-event, character-agnostic (personality comes from the delivery)
+        # These fire instantly (0ms) instead of waiting 1-2s for API
+    }
+
+    # Don't use templates for now — let Claude handle everything
+    # This is a placeholder for when we have enough labeled data to
+    # know which events are reliably detected
+    return None
+
+
 def _save_training_pair(frame, text: str, cycle: int, game: str) -> None:
     """Save screenshot + AI response as a training pair."""
     import cv2
@@ -127,6 +147,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--popup", action="store_true", help="Open as compact popup overlay (Chrome app mode)")
     parser.add_argument("--headless", action="store_true", help="Don't open a browser (for Tauri frontend)")
+    parser.add_argument("--chattiness", type=float, default=0.5,
+                        help="How talkative (0.0=quiet, 0.5=normal, 1.0=chatty)")
     parser.add_argument("--save-training", action="store_true", dest="save_training",
                         help="Save screenshots + AI responses as training data")
     parser.add_argument("--tts", action="store_true", help="Enable voice output (Edge TTS)")
@@ -224,6 +246,14 @@ def main() -> None:
         detector = EventDetector(game=args.game)
         personality = PersonalityEngine()
 
+        # Apply chattiness setting (0.0=quiet, 0.5=normal, 1.0=chatty)
+        chattiness = max(0.0, min(1.0, args.chattiness))
+        personality.cooldown_sec = 8.0 - chattiness * 6.0      # quiet=8s, chatty=2s
+        personality.react_threshold = 0.7 - chattiness * 0.3   # quiet=0.7, chatty=0.4
+        personality.idle_chat_after = 20.0 - chattiness * 12.0  # quiet=20s, chatty=8s
+        log.info("Chattiness=%.1f (cooldown=%.1fs, threshold=%.2f, idle=%.0fs)",
+                 chattiness, personality.cooldown_sec, personality.react_threshold, personality.idle_chat_after)
+
         # Optional TTS
         tts = None
         if args.tts:
@@ -239,10 +269,18 @@ def main() -> None:
         cycle = 0
         api_calls = 0
 
-        # Anti-repetition only
-        history: deque[str] = deque(maxlen=2)
+        # Anti-repetition
+        history: deque[str] = deque(maxlen=3)
+
+        # Rolling event log — last 5 significant events with timestamps
+        event_log: deque[str] = deque(maxlen=5)
+        import datetime
 
         REANCHOR_EVERY = 7
+
+        # Prompt caching — cache system prompt by sending it as first user message
+        # (Anthropic caches identical prefixes automatically)
+        cached_system = [{"type": "text", "text": base_system_prompt, "cache_control": {"type": "ephemeral"}}]
 
         log.info("Pipeline ready: game=%s char=%s tts=%s", args.game, args.character, bool(tts))
         log.info("Pipeline ready")
@@ -280,7 +318,35 @@ def main() -> None:
             broadcast({"type": "thinking"})
 
             try:
-                # --- Layer 3: Claude API call (event-driven, variable tokens) ---
+                # --- Pre-written template responses (skip API for known events) ---
+                template = _get_template_response(signal.label, mode, args.character)
+                if template:
+                    dialogue = template
+                    elapsed_ms = 0
+                    input_tokens = 0
+                    output_tokens = 0
+                    broadcast({"type": "stream_start"})
+                    broadcast({"type": "stream_chunk", "text": dialogue})
+                    broadcast({
+                        "type": "stream_end",
+                        "text": dialogue,
+                        "face": pick_face(dialogue),
+                        "mood": detect_mood(dialogue),
+                        "debug": {"cycle": cycle, "ms": 0, "cost": cost_str,
+                                  "event": signal.label, "score": round(signal.score, 2),
+                                  "mode": "template"},
+                    })
+                    personality.mark_spoken()
+                    if args.save_training:
+                        _save_training_pair(frame, dialogue, cycle, args.game)
+                    history.append(dialogue)
+                    event_log.append(f"{signal.label}")
+                    log.info("[c%d] template (0ms, %s) %s", cycle, signal.label, dialogue[:40])
+                    if _SHUTDOWN.wait(timeout=args.interval):
+                        break
+                    continue
+
+                # --- Layer 3: Claude API call ---
                 img_b64 = frame_to_base64(frame)
                 max_tokens = config.get("max_tokens", 80)
                 temperature = config.get("temperature", 0.7)
@@ -289,9 +355,26 @@ def main() -> None:
                 user_content = []
                 user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
 
-                prompt_text = "지금 이 화면만 봐. 이전 내용 전부 무시.\n"
+                # Build context: CV data + event log + anti-repetition
+                prompt_text = ""
+
+                # CV context (structured, helps Claude understand what's happening)
+                prompt_text += (
+                    f"[화면 분석] 움직임:{signal.motion_pct:.0f}% "
+                    f"장면전환:{'O' if signal.scene_change else 'X'} "
+                    f"UI변화:{'O' if signal.ui_change else 'X'}\n"
+                )
+
+                # Event log (what happened recently)
+                if event_log:
+                    prompt_text += "[최근] " + " → ".join(event_log) + "\n"
+
+                # Anti-repetition
                 if history:
-                    prompt_text += "직전 말 (반복만 피해): " + history[-1][:30] + "\n"
+                    prompt_text += "반복 금지: " + " / ".join(h[:25] for h in history) + "\n"
+
+                # Instruction
+                prompt_text += "\n"
                 if prompt_hint:
                     prompt_text += prompt_hint
                 else:
@@ -303,7 +386,7 @@ def main() -> None:
 
                 user_content.append({"type": "text", "text": prompt_text})
 
-                # Re-anchoring
+                # System prompt with re-anchoring
                 system_prompt = base_system_prompt
                 if api_calls % REANCHOR_EVERY == 0:
                     system_prompt += (
@@ -388,6 +471,10 @@ def main() -> None:
                 if args.save_training:
                     _save_training_pair(frame, dialogue, cycle, args.game)
                 history.append(dialogue)
+
+                # Update event log for context
+                if signal.label not in ("idle", "minor"):
+                    event_log.append(signal.label)
 
             except Exception as ex:
                 log.error("API error: %s", ex)

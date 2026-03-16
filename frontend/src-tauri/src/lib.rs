@@ -12,6 +12,7 @@ async fn start_companion(
     game: String,
     character: String,
     interval: f64,
+    chattiness: Option<f64>,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
@@ -48,6 +49,7 @@ async fn start_companion(
             "--game", &game,
             "--interval", &interval.to_string(),
             "--character", &character,
+            "--chattiness", &format!("{:.1}", chattiness.unwrap_or(0.5)),
             "--port", "8080",
             "--headless",
             "--save-training",
