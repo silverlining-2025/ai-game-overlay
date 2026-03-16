@@ -1,4 +1,4 @@
-import { useEffect, useState, memo } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import type { AppConfig } from "../types";
 import "./CharacterAvatar.css";
 
@@ -83,7 +83,7 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
 
 // Lottie avatar for non-Nozomi characters
 function LottieAvatar({ character, mood }: { character: string; mood: string }) {
-  const containerRef = { current: null as HTMLDivElement | null };
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [, setLoaded] = useState(false);
 
   useEffect(() => {

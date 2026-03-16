@@ -92,6 +92,7 @@ export default function OverlayScreen({ config }: Props) {
   const isStreamingRef = useRef(false);
   const [statusText, setStatusText] = useState("");
   const [debugInfo, setDebugInfo] = useState("");
+  const [showDebug, setShowDebug] = useState(false);
 
   // Drag support
   const isDragging = useRef(false);
@@ -140,11 +141,15 @@ export default function OverlayScreen({ config }: Props) {
     }, 22);
   }
 
-  // Click-through toggle: hold Alt to interact with overlay
+  // Click-through toggle + debug toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Alt" && tauriWindow) {
         tauriWindow.getCurrentWindow().setIgnoreCursorEvents(false);
+      }
+      // Ctrl+Shift+D toggles debug bar
+      if (e.key === "D" && e.ctrlKey && e.shiftKey) {
+        setShowDebug(prev => !prev);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -171,6 +176,14 @@ export default function OverlayScreen({ config }: Props) {
 
       es.onopen = () => {
         dispatch({ type: "CONNECTED" });
+        // Greeting — character is alive from the start
+        if (speechRef.current) speechRef.current.textContent = "음~ 게임 시작하는 거야?";
+        dispatch({
+          type: "RESPONSE",
+          payload: { text: "음~ 게임 시작하는 거야?", face: "", mood: "chill", cycle: 0, elapsedMs: 0, costEstimate: "" },
+        });
+        if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+        bubbleTimer.current = window.setTimeout(() => dispatch({ type: "HIDE_BUBBLE" }), 5000);
       };
 
       es.onmessage = (event) => {
@@ -221,9 +234,10 @@ export default function OverlayScreen({ config }: Props) {
           }
 
           if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+          const hideMs = Math.min(15000, Math.max(4000, data.text.length * 80));
           bubbleTimer.current = window.setTimeout(() => {
             dispatch({ type: "HIDE_BUBBLE" });
-          }, 8000);
+          }, hideMs);
 
         // Legacy non-streaming support
         } else if (data.type === "response") {
@@ -239,9 +253,10 @@ export default function OverlayScreen({ config }: Props) {
           typewriteText(r.text, () => dispatch({ type: "SPEAKING_DONE" }));
 
           if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+          const hideMs2 = Math.min(15000, Math.max(4000, r.text.length * 80));
           bubbleTimer.current = window.setTimeout(() => {
             dispatch({ type: "HIDE_BUBBLE" });
-          }, 8000);
+          }, hideMs2);
         } else if (data.type === "error") {
           // Don't show raw errors to user — just hide the bubble
           dispatch({ type: "HIDE_BUBBLE" });
@@ -317,7 +332,7 @@ export default function OverlayScreen({ config }: Props) {
           </div>
         )}
         <div className={`connection-dot ${state.connected ? "connected" : ""}`} />
-        {debugInfo && <div className="debug-bar">{debugInfo}</div>}
+        {showDebug && debugInfo && <div className="debug-bar">{debugInfo}</div>}
       </div>
     </div>
   );

@@ -28,11 +28,22 @@ interface Props {
   onStart: (config: AppConfig) => void;
 }
 
+function loadSaved<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem("companion_config");
+    if (saved) {
+      const config = JSON.parse(saved);
+      if (key in config) return config[key];
+    }
+  } catch { /* ignore */ }
+  return fallback;
+}
+
 export default function ConfigScreen({ onStart }: Props) {
-  const [character, setCharacter] = useState<AppConfig["character"]>("nozomi");
-  const [game, setGame] = useState<AppConfig["game"]>("palworld");
-  const [position, setPosition] = useState<AppConfig["position"]>("top-right");
-  const [chattiness, setChattiness] = useState(0.5);
+  const [character, setCharacter] = useState<AppConfig["character"]>(() => loadSaved("character", "nozomi"));
+  const [game, setGame] = useState<AppConfig["game"]>(() => loadSaved("game", "palworld"));
+  const [position, setPosition] = useState<AppConfig["position"]>(() => loadSaved("position", "top-right"));
+  const [chattiness, setChattiness] = useState(() => loadSaved("chattiness", 0.5));
 
   const handleStart = async () => {
     const config: AppConfig = { game, character, interval: 3, position, chattiness };
@@ -123,8 +134,8 @@ export default function ConfigScreen({ onStart }: Props) {
         </div>
 
         <p className="config-hint">
-          이벤트 기반 반응 — 화면 변화가 감지될 때만 반응합니다.
-          Hold Alt to interact with overlay.
+          AI가 적절한 타이밍에 자동으로 반응합니다.
+          오버레이 조작: Alt 키를 누른 채로 드래그/클릭.
         </p>
 
         <button type="button" className="btn-start" onClick={handleStart}>
