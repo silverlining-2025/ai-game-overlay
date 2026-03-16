@@ -79,7 +79,7 @@ export default function OverlayScreen({ config }: Props) {
   const [state, dispatch] = useReducer(overlayReducer, {
     connected: false,
     isThinking: false,
-    showBubble: true,
+    showBubble: false,  // Hidden until first real reaction
     isSpeaking: false,
     detailedMood: "chill",
     reaction: null,
@@ -89,7 +89,7 @@ export default function OverlayScreen({ config }: Props) {
   const speechRef = useRef<HTMLDivElement>(null);
   const typewriterRef = useRef<number | null>(null);
   const bubbleTimer = useRef<number | null>(null);
-  const [statusText, setStatusText] = useState("백엔드 연결 중...");
+  const [statusText, setStatusText] = useState("");
 
   // Drag support
   const isDragging = useRef(false);
@@ -169,8 +169,6 @@ export default function OverlayScreen({ config }: Props) {
 
       es.onopen = () => {
         dispatch({ type: "CONNECTED" });
-        setStatusText("연결됨! 화면 분석 시작...");
-        if (speechRef.current) speechRef.current.textContent = "연결됨! 화면 분석 시작...";
       };
 
       es.onmessage = (event) => {
@@ -183,19 +181,20 @@ export default function OverlayScreen({ config }: Props) {
 
         // --- Streaming: text appears as Claude generates it ---
         } else if (data.type === "stream_start") {
-          // Clear previous text, show bubble, mark speaking
           if (typewriterRef.current) clearInterval(typewriterRef.current);
           if (speechRef.current) speechRef.current.textContent = "";
-          dispatch({ type: "THINKING" }); // show thinking briefly
-          dispatch({
-            type: "RESPONSE",
-            payload: {
-              text: "", face: "", mood: "chill",
-              cycle: data.cycle, elapsedMs: 0, costEstimate: "...",
-            },
-          });
+          dispatch({ type: "THINKING" });
         } else if (data.type === "stream_chunk") {
-          // Append chunk directly to DOM (no re-render)
+          // First chunk transitions from thinking to speaking
+          if (state.isThinking) {
+            dispatch({
+              type: "RESPONSE",
+              payload: {
+                text: "", face: "", mood: "chill",
+                cycle: 0, elapsedMs: 0, costEstimate: "",
+              },
+            });
+          }
           if (speechRef.current) {
             speechRef.current.textContent += data.text;
           }
@@ -236,9 +235,8 @@ export default function OverlayScreen({ config }: Props) {
             dispatch({ type: "HIDE_BUBBLE" });
           }, 8000);
         } else if (data.type === "error") {
-          dispatch({ type: "ERROR", text: data.text });
-          setStatusText(data.text);
-          if (speechRef.current) speechRef.current.textContent = data.text;
+          // Don't show raw errors to user — just hide the bubble
+          dispatch({ type: "HIDE_BUBBLE" });
         }
       };
 
@@ -306,12 +304,6 @@ export default function OverlayScreen({ config }: Props) {
             ) : (
               <div className="speech-text" ref={speechRef}>
                 {statusText}
-              </div>
-            )}
-            {state.reaction && !state.isThinking && (
-              <div className="bubble-meta">
-                #{state.reaction.cycle} | {state.reaction.elapsedMs}ms |{" "}
-                <span className="cost">${state.reaction.costEstimate}</span>
               </div>
             )}
           </div>

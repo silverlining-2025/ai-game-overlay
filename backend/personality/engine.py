@@ -114,6 +114,7 @@ class PersonalityEngine:
         self.burst_threshold = 0.7       # event score to trigger burst
         self.react_threshold = 0.5       # raised from 0.4 — less chatty during exploration
         self._in_combat = False          # track combat state for dynamic cooldown
+        self._idle_chat_count = 0        # consecutive idle chats (max 3)
 
     def decide(self, event_score: float, event_label: str) -> tuple[ResponseMode, dict]:
         """Given an event score, decide what to do."""
@@ -133,6 +134,7 @@ class PersonalityEngine:
         # Track event timing and combat state
         if event_score > 0.3:
             self.state.last_event_time = now
+            self._idle_chat_count = 0  # Reset idle counter on real events
 
         # Detect combat state from event labels
         if event_label in ("major", "scene_change") and event_score >= 0.7:
@@ -176,21 +178,26 @@ class PersonalityEngine:
             self.state.consecutive_silences += 1
             return ResponseMode.SILENT, {}
 
-        # IDLE — nothing for a while
+        # IDLE — nothing for a while (max 3, then go silent)
+        idle_chats_in_row = getattr(self, '_idle_chat_count', 0)
         if since_event > self.idle_chat_after and since_speak > self.idle_chat_after * 0.8:
-            # Random chance to chat — more likely the longer we've been quiet
-            idle_probability = min(0.5, 0.1 + (since_speak - self.idle_chat_after) * 0.05)
+            if idle_chats_in_row >= 3:
+                # Already chatted 3 times idle — go quiet
+                self.state.consecutive_silences += 1
+                return ResponseMode.SILENT, {}
+            idle_probability = min(0.25, 0.05 + (since_speak - self.idle_chat_after) * 0.02)
             if random.random() < idle_probability:
                 self.state.speak_count += 1
                 self.state.consecutive_silences = 0
+                self._idle_chat_count += 1
                 return ResponseMode.CHAT, {
                     "max_tokens": 100,
                     "temperature": 0.9,
-                    "delay_sec": random.uniform(1.5, 4.0),
+                    "delay_sec": random.uniform(2.0, 6.0),
                     "prompt_hint": (
                         "화면에 특별한 건 없음. 게임 관련 잡담, 독백, 혼잣말. "
                         "캐릭터 성격에 맞는 자연스러운 한마디. "
-                        "화면 묘사 금지."
+                        "화면 묘사 금지. 이전에 했던 말과 다른 주제로."
                     ),
                 }
 
@@ -220,17 +227,21 @@ class PersonalityEngine:
         self.state.last_speak_time = time.time()
 
     def get_emotion_context(self) -> str:
-        """Return a short emotional context string for the prompt."""
+        """Return natural-language emotional context for the prompt."""
         e = self.state.emotions
         parts = []
-        if e.excitement > 0.3:
-            parts.append(f"흥분({e.excitement:.0%})")
-        if e.tension > 0.3:
-            parts.append(f"긴장({e.tension:.0%})")
+        if e.excitement > 0.6:
+            parts.append("매우 흥분")
+        elif e.excitement > 0.3:
+            parts.append("흥분")
+        if e.tension > 0.6:
+            parts.append("매우 긴장")
+        elif e.tension > 0.3:
+            parts.append("긴장")
         if e.amusement > 0.3:
-            parts.append(f"재미({e.amusement:.0%})")
+            parts.append("재밌어하는 중")
         if e.concern > 0.3:
-            parts.append(f"걱정({e.concern:.0%})")
+            parts.append("걱정되는 중")
         if not parts:
             return "평온"
-        return " + ".join(parts)
+        return ", ".join(parts)

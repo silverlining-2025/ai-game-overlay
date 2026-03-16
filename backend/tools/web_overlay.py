@@ -210,7 +210,6 @@ def main() -> None:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
             log.error("ANTHROPIC_API_KEY not set! Add it to backend/.env")
-            broadcast({"type": "error", "text": "API 키가 설정되지 않았습니다. backend/.env 파일을 확인하세요."})
             return
 
         import httpx
@@ -336,12 +335,7 @@ def main() -> None:
                                     # Send streaming chunk to frontend
                                     if first_token:
                                         first_token = False
-                                        broadcast({
-                                            "type": "stream_start",
-                                            "cycle": cycle,
-                                            "screenshot": display_b64,
-                                            "mode": mode.value,
-                                        })
+                                        broadcast({"type": "stream_start"})
                                     broadcast({
                                         "type": "stream_chunk",
                                         "text": chunk,
@@ -369,19 +363,12 @@ def main() -> None:
                 log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
                          cycle, mode.value, elapsed_ms, signal.label, signal.score, dialogue[:60])
 
-                # Send final complete response
+                # Send final response — only user-facing data
                 broadcast({
                     "type": "stream_end",
                     "text": dialogue,
                     "face": pick_face(dialogue),
                     "mood": detect_mood(dialogue),
-                    "cycle": cycle,
-                    "elapsed_ms": round(elapsed_ms),
-                    "cost_estimate": cost_str,
-                    "event": signal.label,
-                    "event_score": round(signal.score, 2),
-                    "mode": mode.value,
-                    "excitement": personality.get_emotion_context(),
                 })
 
                 # TTS voice output (after full text is ready)
@@ -395,7 +382,8 @@ def main() -> None:
                 history.append(dialogue)
 
             except Exception as ex:
-                broadcast({"type": "error", "text": f"에러: {ex}"})
+                log.error("API error: %s", ex)
+                # Don't show raw errors to user
 
             # Variable interval based on mode
             wait = 0.5 if mode == ResponseMode.BURST else args.interval

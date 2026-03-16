@@ -67,7 +67,7 @@
 <div class="container" id="container">
   <div class="top-row">
     <div class="face" id="face">( ˘ω˘ )</div>
-    <div class="status" id="status">connecting...</div>
+    <div class="status" id="status"></div>
   </div>
   <div class="speech" id="speech">연결 중...<span class="cursor"></span></div>
   <img class="screen" id="screen" alt="capture" style="display:none">
@@ -140,7 +140,7 @@ evtSource.onmessage = (event) => {
     status.textContent = data.text;
   }
 };
-evtSource.onerror = () => { status.textContent = 'disconnected...'; };
+evtSource.onerror = () => { };
 </script>
 </body>
 </html>
