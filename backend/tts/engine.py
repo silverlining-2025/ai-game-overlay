@@ -142,19 +142,23 @@ class TTSEngine:
             log.error(f"TTS error: {e}")
 
     def _play_audio(self, path: str):
-        """Play an MP3 file on Windows using the default media player."""
-        import os as _os
+        """Play an MP3 file in-process using pygame (no external player)."""
         try:
-            _os.startfile(Path(path).resolve())
-            # Wait for approximate playback duration then clean up
-            import time
-            size_kb = Path(path).stat().st_size / 1024
-            # Rough estimate: ~1s per 10KB for speech audio
-            wait = max(2.0, size_kb / 10)
-            time.sleep(wait)
+            import pygame
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            pygame.mixer.music.load(path)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                pygame.time.wait(50)
         except Exception as e:
             log.error(f"Audio playback error: {e}")
         finally:
+            try:
+                import pygame
+                pygame.mixer.music.unload()
+            except Exception:
+                pass
             try:
                 Path(path).unlink(missing_ok=True)
             except Exception:
