@@ -179,8 +179,7 @@ export default function OverlayScreen({ config }: Props) {
         if (data.type === "thinking") {
           dispatch({ type: "THINKING" });
         } else if (data.type === "status") {
-          setStatusText(data.text);
-          if (speechRef.current) speechRef.current.textContent = data.text;
+          // Internal status — don't show to user
 
         // --- Streaming: text appears as Claude generates it ---
         } else if (data.type === "stream_start") {
