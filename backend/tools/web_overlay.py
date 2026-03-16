@@ -313,27 +313,78 @@ def main() -> None:
                     )
 
                 t0 = time.perf_counter()
-                response = client.messages.create(
+                display_b64 = frame_to_base64(frame, max_size=640, quality=60)
+
+                # --- Streaming response ---
+                dialogue = ""
+                input_tokens = 0
+                output_tokens = 0
+                first_token = True
+
+                with client.messages.stream(
                     model="claude-haiku-4-5-20251001",
                     max_tokens=max_tokens,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_content}],
-                )
+                ) as stream:
+                    for event in stream:
+                        if hasattr(event, 'type'):
+                            if event.type == 'content_block_delta' and hasattr(event, 'delta'):
+                                chunk = getattr(event.delta, 'text', '')
+                                if chunk:
+                                    dialogue += chunk
+                                    # Send streaming chunk to frontend
+                                    if first_token:
+                                        first_token = False
+                                        broadcast({
+                                            "type": "stream_start",
+                                            "cycle": cycle,
+                                            "screenshot": display_b64,
+                                            "mode": mode.value,
+                                        })
+                                    broadcast({
+                                        "type": "stream_chunk",
+                                        "text": chunk,
+                                    })
+                            elif event.type == 'message_start' and hasattr(event, 'message'):
+                                usage = getattr(event.message, 'usage', None)
+                                if usage:
+                                    input_tokens = getattr(usage, 'input_tokens', 0)
+                            elif event.type == 'message_delta':
+                                usage = getattr(event, 'usage', None)
+                                if usage:
+                                    output_tokens = getattr(usage, 'output_tokens', 0)
+
+                dialogue = dialogue.strip()
                 elapsed_ms = (time.perf_counter() - t0) * 1000
-                dialogue = response.content[0].text.strip()
                 api_calls += 1
-                personality.mark_spoken()  # Update cooldown AFTER successful response
+                personality.mark_spoken()
 
                 # Track costs
-                total_input_tokens += response.usage.input_tokens
-                total_output_tokens += response.usage.output_tokens
+                total_input_tokens += input_tokens
+                total_output_tokens += output_tokens
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                 cost_str = f"{cost:.4f}"
 
                 log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
                          cycle, mode.value, elapsed_ms, signal.label, signal.score, dialogue[:60])
 
-                # TTS voice output
+                # Send final complete response
+                broadcast({
+                    "type": "stream_end",
+                    "text": dialogue,
+                    "face": pick_face(dialogue),
+                    "mood": detect_mood(dialogue),
+                    "cycle": cycle,
+                    "elapsed_ms": round(elapsed_ms),
+                    "cost_estimate": cost_str,
+                    "event": signal.label,
+                    "event_score": round(signal.score, 2),
+                    "mode": mode.value,
+                    "excitement": personality.get_emotion_context(),
+                })
+
+                # TTS voice output (after full text is ready)
                 if tts and dialogue:
                     emotion = personality.state.emotions.dominant()
                     tts.speak(dialogue, emotion=emotion)
@@ -342,25 +393,6 @@ def main() -> None:
                 if args.save_training:
                     _save_training_pair(frame, dialogue, cycle, args.game)
                 history.append(dialogue)
-
-                # Send to frontend
-                display_b64 = frame_to_base64(frame, max_size=640, quality=60)
-
-                broadcast({
-                    "type": "response",
-                    "text": dialogue,
-                    "face": pick_face(dialogue),
-                    "mood": detect_mood(dialogue),
-                    "cycle": cycle,
-                    "elapsed_ms": round(elapsed_ms),
-                    "interval": args.interval,
-                    "screenshot": display_b64,
-                    "cost_estimate": cost_str,
-                    "event": signal.label,
-                    "event_score": round(signal.score, 2),
-                    "mode": mode.value,
-                    "excitement": personality.get_emotion_context(),
-                })
 
             except Exception as ex:
                 broadcast({"type": "error", "text": f"에러: {ex}"})

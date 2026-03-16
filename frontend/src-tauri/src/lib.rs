@@ -51,6 +51,7 @@ async fn start_companion(
             "--port", "8080",
             "--headless",
             "--save-training",
+            "--tts",
         ])
         .env("PYTHONIOENCODING", "utf-8")
         .current_dir(&repo_root)

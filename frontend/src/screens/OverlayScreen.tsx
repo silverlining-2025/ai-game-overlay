@@ -181,6 +181,45 @@ export default function OverlayScreen({ config }: Props) {
         } else if (data.type === "status") {
           setStatusText(data.text);
           if (speechRef.current) speechRef.current.textContent = data.text;
+
+        // --- Streaming: text appears as Claude generates it ---
+        } else if (data.type === "stream_start") {
+          // Clear previous text, show bubble, mark speaking
+          if (typewriterRef.current) clearInterval(typewriterRef.current);
+          if (speechRef.current) speechRef.current.textContent = "";
+          dispatch({ type: "THINKING" }); // show thinking briefly
+          dispatch({
+            type: "RESPONSE",
+            payload: {
+              text: "", face: "", mood: "chill",
+              cycle: data.cycle, elapsedMs: 0, costEstimate: "...",
+            },
+          });
+        } else if (data.type === "stream_chunk") {
+          // Append chunk directly to DOM (no re-render)
+          if (speechRef.current) {
+            speechRef.current.textContent += data.text;
+          }
+        } else if (data.type === "stream_end") {
+          // Final response with metadata
+          const r: CompanionReaction = {
+            text: data.text,
+            face: data.face,
+            mood: data.mood || "chill",
+            cycle: data.cycle,
+            elapsedMs: data.elapsed_ms,
+            costEstimate: data.cost_estimate || "?",
+          };
+          dispatch({ type: "RESPONSE", payload: r });
+          dispatch({ type: "SPEAKING_DONE" });
+          if (speechRef.current) speechRef.current.textContent = data.text;
+
+          if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+          bubbleTimer.current = window.setTimeout(() => {
+            dispatch({ type: "HIDE_BUBBLE" });
+          }, 8000);
+
+        // Legacy non-streaming support
         } else if (data.type === "response") {
           const r: CompanionReaction = {
             text: data.text,
@@ -202,7 +241,6 @@ export default function OverlayScreen({ config }: Props) {
           setStatusText(data.text);
           if (speechRef.current) speechRef.current.textContent = data.text;
         }
-        // Ignore heartbeat
       };
 
       es.onerror = () => {
