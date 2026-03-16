@@ -20,27 +20,45 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# Voice presets per character
-CHARACTER_VOICES: dict[str, str] = {
-    "nozomi": "ko-KR-SunHiNeural",
-    "robot": "ko-KR-InJoonNeural",
-    "cat": "ko-KR-SunHiNeural",
-    "ghost": "ko-KR-SunHiNeural",
-    "fox": "ko-KR-SunHiNeural",
-    "slime": "ko-KR-SunHiNeural",
+# Voice + base prosody per character
+CHARACTER_VOICES: dict[str, dict] = {
+    "nozomi": {
+        "voice": "ko-KR-SunHiNeural",    # Young, bright — matches tsundere energy
+        "base_rate": "+5%",                # Slightly fast — energetic personality
+    },
+    "robot": {
+        "voice": "ko-KR-InJoonNeural",    # Male, steady — robotic feel
+        "base_rate": "-5%",                # Slightly slow — deliberate/analytical
+    },
+    "cat": {
+        "voice": "ko-KR-YuJinNeural",     # Soft female — lazy cat vibe
+        "base_rate": "-10%",               # Slow — languid, unbothered
+    },
+    "ghost": {
+        "voice": "ko-KR-YuJinNeural",     # Soft female — ethereal/airy
+        "base_rate": "-5%",                # Slightly slow — floaty
+    },
+    "fox": {
+        "voice": "ko-KR-SeoHyeonNeural",  # Clear female — sharp/cunning
+        "base_rate": "+10%",               # Fast — quick-witted
+    },
+    "slime": {
+        "voice": "ko-KR-SunHiNeural",     # Bright female — bubbly energy
+        "base_rate": "+15%",               # Fast — bouncy, hyper
+    },
 }
 
-# Emotion → speech rate adjustment
-EMOTION_RATE: dict[str, str] = {
-    "excitement": "+25%",
-    "tension": "+10%",
-    "amusement": "+15%",
-    "concern": "-10%",
-    "calm": "+0%",
+# Emotion → additional rate/volume adjustments (stacks on base_rate)
+EMOTION_RATE: dict[str, int] = {
+    "excitement": 30,
+    "tension": 10,
+    "amusement": 20,
+    "concern": -15,
+    "calm": 0,
 }
 
 EMOTION_VOLUME: dict[str, str] = {
-    "excitement": "+15%",
+    "excitement": "+20%",
     "tension": "+5%",
     "amusement": "+10%",
     "concern": "-5%",
@@ -52,7 +70,9 @@ class TTSEngine:
     """Async TTS engine using edge-tts."""
 
     def __init__(self, character: str = "nozomi"):
-        self.voice = CHARACTER_VOICES.get(character, "ko-KR-SunHiNeural")
+        char_config = CHARACTER_VOICES.get(character, CHARACTER_VOICES["nozomi"])
+        self.voice = char_config["voice"]
+        self.base_rate = char_config.get("base_rate", "+0%")
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._ready = threading.Event()
@@ -92,7 +112,11 @@ class TTSEngine:
         try:
             import edge_tts
 
-            rate = EMOTION_RATE.get(emotion, "+0%")
+            # Combine base character rate + emotion adjustment
+            base = int(self.base_rate.replace("%", "").replace("+", ""))
+            emotion_adj = EMOTION_RATE.get(emotion, 0)
+            combined = base + emotion_adj
+            rate = f"{'+' if combined >= 0 else ''}{combined}%"
             volume = EMOTION_VOLUME.get(emotion, "+0%")
 
             communicate = edge_tts.Communicate(
@@ -141,7 +165,10 @@ class TTSEngine:
         try:
             import edge_tts
 
-            rate = EMOTION_RATE.get(emotion, "+0%")
+            base = int(self.base_rate.replace("%", "").replace("+", ""))
+            emotion_adj = EMOTION_RATE.get(emotion, 0)
+            combined = base + emotion_adj
+            rate = f"{'+' if combined >= 0 else ''}{combined}%"
             volume = EMOTION_VOLUME.get(emotion, "+0%")
 
             communicate = edge_tts.Communicate(
