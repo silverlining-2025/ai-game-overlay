@@ -246,7 +246,7 @@ def main() -> None:
         REANCHOR_EVERY = 7
 
         log.info("Pipeline ready: game=%s char=%s tts=%s", args.game, args.character, bool(tts))
-        broadcast({"type": "status", "text": f"ready | {args.game} | {args.character} | event-driven"})
+        broadcast({"type": "status", "text": "화면 분석 준비 완료!"})
         time.sleep(1)
 
         while not _SHUTDOWN.is_set():
