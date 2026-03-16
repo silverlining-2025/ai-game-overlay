@@ -142,25 +142,16 @@ class TTSEngine:
             log.error(f"TTS error: {e}")
 
     def _play_audio(self, path: str):
-        """Play an MP3 file on Windows."""
-        import subprocess
+        """Play an MP3 file on Windows using the default media player."""
+        import os as _os
         try:
-            # Use Windows Media Player COM via PowerShell (supports MP3)
-            ps_cmd = (
-                f'Add-Type -AssemblyName presentationCore; '
-                f'$p = New-Object System.Windows.Media.MediaPlayer; '
-                f'$p.Open([Uri]"{Path(path).resolve()}"); '
-                f'$p.Play(); '
-                f'Start-Sleep -Milliseconds 100; '
-                f'while($p.Position -lt $p.NaturalDuration.TimeSpan) {{ Start-Sleep -Milliseconds 100 }}; '
-                f'$p.Close()'
-            )
-            subprocess.run(
-                ["powershell", "-c", ps_cmd],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=15,
-            )
+            _os.startfile(Path(path).resolve())
+            # Wait for approximate playback duration then clean up
+            import time
+            size_kb = Path(path).stat().st_size / 1024
+            # Rough estimate: ~1s per 10KB for speech audio
+            wait = max(2.0, size_kb / 10)
+            time.sleep(wait)
         except Exception as e:
             log.error(f"Audio playback error: {e}")
         finally:
