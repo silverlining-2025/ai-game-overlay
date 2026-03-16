@@ -308,8 +308,8 @@ def main() -> None:
                 system_prompt = base_system_prompt
                 if api_calls % REANCHOR_EVERY == 0:
                     system_prompt += (
-                        f"\n\n[리마인더] 넌 '{args.character}'야. "
-                        "캐릭터 유지. 분석/설명 금지. 대사만."
+                        "\n\n[리마인더] 캐릭터 유지. 한국어로만. "
+                        "분석/설명/영어 금지. 대사만 출력."
                     )
 
                 t0 = time.perf_counter()
