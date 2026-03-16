@@ -170,3 +170,15 @@
 .connection-dot.connected {
   background: #22c55e;
 }
+
+.debug-bar {
+  position: absolute;
+  bottom: -16px;
+  left: 8px;
+  font-size: 9px;
+  font-family: 'Consolas', monospace;
+  color: #3a3a5a;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.5;
+}

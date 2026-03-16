@@ -363,12 +363,20 @@ def main() -> None:
                 log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
                          cycle, mode.value, elapsed_ms, signal.label, signal.score, dialogue[:60])
 
-                # Send final response — only user-facing data
+                # Send final response
                 broadcast({
                     "type": "stream_end",
                     "text": dialogue,
                     "face": pick_face(dialogue),
                     "mood": detect_mood(dialogue),
+                    "debug": {
+                        "cycle": cycle,
+                        "ms": round(elapsed_ms),
+                        "cost": cost_str,
+                        "event": signal.label,
+                        "score": round(signal.score, 2),
+                        "mode": mode.value,
+                    },
                 })
 
                 # TTS voice output (after full text is ready)

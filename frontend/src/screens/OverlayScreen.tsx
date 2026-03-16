@@ -90,6 +90,7 @@ export default function OverlayScreen({ config }: Props) {
   const typewriterRef = useRef<number | null>(null);
   const bubbleTimer = useRef<number | null>(null);
   const [statusText, setStatusText] = useState("");
+  const [debugInfo, setDebugInfo] = useState("");
 
   // Drag support
   const isDragging = useRef(false);
@@ -211,6 +212,10 @@ export default function OverlayScreen({ config }: Props) {
           dispatch({ type: "RESPONSE", payload: r });
           dispatch({ type: "SPEAKING_DONE" });
           if (speechRef.current) speechRef.current.textContent = data.text;
+          if (data.debug) {
+            const d = data.debug;
+            setDebugInfo(`#${d.cycle} | ${d.ms}ms | $${d.cost} | ${d.event}(${d.score}) | ${d.mode}`);
+          }
 
           if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
           bubbleTimer.current = window.setTimeout(() => {
@@ -309,6 +314,7 @@ export default function OverlayScreen({ config }: Props) {
           </div>
         )}
         <div className={`connection-dot ${state.connected ? "connected" : ""}`} />
+        {debugInfo && <div className="debug-bar">{debugInfo}</div>}
       </div>
     </div>
   );
