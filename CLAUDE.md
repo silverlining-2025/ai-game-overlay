@@ -122,18 +122,41 @@ Before each coding session:
 3. Read this file + check MEMORY.md for context
 4. Reference P1-P3 docs only when working on that specific area
 
-## Agentic Team Workflow
+## Agentic Team Workflow (MANDATORY)
 
-Always operate as a team of specialized agents running in parallel:
+Claude is the **Planner + Orchestrator + Reviewer**. Agents are **Workers**.
+
+### Phase 1: PLAN (before any multi-step task)
+- Decompose into independent, non-overlapping tasks
+- Define clear scope and expected output for each agent
+- Identify dependencies (what must be sequential)
+- Use TodoWrite to track the plan
+
+### Phase 2: EXECUTE (spawn parallel agents)
+- Launch independent agents simultaneously
+- Never do sequentially what can be done in parallel
+- Never duplicate work agents are doing
+- Monitor and redirect if agents go off-track
+
+### Phase 3: REVIEW (after agents complete)
+- Evaluate output against requirements
+- Send back for improvements if insufficient
+- Only commit/push after review passes
+- Verify no conflicts between parallel outputs
+
+### Agent Roles (spawned as subagents)
 
 | Role | Responsibility |
 |------|---------------|
-| **Orchestrator** | Decomposes tasks, assigns work, resolves conflicts, updates docs/memory |
 | **Researcher** | Web search, reads prior art, explores codebase — feeds specs to coder |
 | **Coder** | Implements based on researcher findings + orchestrator plan |
-| **Reviewer/Tester** | Runs tests, checks output, flags issues back to orchestrator |
+| **Tester** | Runs tests, checks output, flags issues |
 
-**Parallel by default**: Launch independent agents simultaneously. Never do sequentially what can be done in parallel (e.g., research + planning, backend + frontend implementation).
+**Anti-patterns (NEVER do these):**
+- Editing 5+ files sequentially as the main agent
+- Doing research AND implementation in the same turn
+- Starting implementation without planning tasks first
+- Committing without reviewing agent output
 
 **Pre-authorized actions** (no confirmation needed):
 - Edit/create files in this repo
