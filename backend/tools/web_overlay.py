@@ -90,6 +90,17 @@ def _load_html_page() -> str:
     return "<html><body><h1>overlay.html not found</h1></body></html>"
 
 
+def _trigram_similarity(a: str, b: str) -> float:
+    """Fast trigram Jaccard similarity — no ML needed."""
+    if len(a) < 3 or len(b) < 3:
+        return 0.0
+    tri_a = set(a[i:i+3] for i in range(len(a) - 2))
+    tri_b = set(b[i:i+3] for i in range(len(b) - 2))
+    if not tri_a or not tri_b:
+        return 0.0
+    return len(tri_a & tri_b) / len(tri_a | tri_b)
+
+
 def _get_template_response(event_label: str, mode, character: str) -> str | None:
     """Pre-written instant responses for common events. Returns None to use API instead."""
     import random
@@ -318,7 +329,10 @@ def main() -> None:
         api_calls = 0
 
         # Anti-repetition
-        history: deque[str] = deque(maxlen=3)
+        history: deque[str] = deque(maxlen=5)
+
+        # Topic registry — track covered topics to prevent loops
+        covered_topics: deque[str] = deque(maxlen=8)
 
         # Rolling event log — last 5 significant events with timestamps
         event_log: deque[str] = deque(maxlen=5)
@@ -417,9 +431,11 @@ def main() -> None:
                 if event_log:
                     prompt_text += "[최근] " + " → ".join(event_log) + "\n"
 
-                # Anti-repetition
+                # Anti-repetition — recent responses + covered topics
                 if history:
-                    prompt_text += "반복 금지: " + " / ".join(h[:25] for h in history) + "\n"
+                    prompt_text += "반복 금지: " + " / ".join(h[:20] for h in history) + "\n"
+                if covered_topics:
+                    prompt_text += "이미 다룬 주제 (다시 언급 금지): " + ", ".join(covered_topics) + "\n"
 
                 # Instruction
                 prompt_text += "\n"
@@ -495,6 +511,21 @@ def main() -> None:
                         break
                     continue
 
+                # Similarity gate — suppress if too similar to recent responses
+                is_repetitive = any(
+                    _trigram_similarity(dialogue, prev) > 0.45
+                    for prev in history
+                )
+                if is_repetitive:
+                    log.info("[c%d] SUPPRESSED (too similar to recent)", cycle)
+                    total_input_tokens += input_tokens
+                    total_output_tokens += output_tokens
+                    cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
+                    cost_str = f"{cost:.4f}"
+                    if _SHUTDOWN.wait(timeout=args.interval):
+                        break
+                    continue
+
                 personality.mark_spoken()
 
                 # Track costs
@@ -531,6 +562,11 @@ def main() -> None:
                 if args.save_training:
                     _save_training_pair(frame, dialogue, cycle, args.game)
                 history.append(dialogue)
+
+                # Extract topic keywords and add to covered_topics
+                topic_keywords = [w for w in dialogue.split() if len(w) >= 3][:3]
+                if topic_keywords:
+                    covered_topics.append(" ".join(topic_keywords[:2]))
 
                 # Update event log for context
                 if signal.label not in ("idle", "minor"):

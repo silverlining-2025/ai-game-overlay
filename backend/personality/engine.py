@@ -153,8 +153,12 @@ class PersonalityEngine:
             self._scene_comment_count = 0
             self._last_scene_label = event_label
 
-        # Dynamic cooldown based on state
+        # Dynamic cooldown based on state + emotional intensity
         active_cooldown = self.combat_cooldown_sec if self._in_combat else self.cooldown_sec
+
+        # Emotional silence amplifier — calm = quieter
+        if self.state.emotions.intensity() < 0.15 and not self._in_combat:
+            active_cooldown *= 2.0  # Double cooldown when calm
 
         # --- Decision logic ---
 
@@ -167,7 +171,7 @@ class PersonalityEngine:
                 "max_tokens": 50,
                 "temperature": 0.8,
                 "delay_sec": random.uniform(0, 0.3),
-                "prompt_hint": f"짧게! 1문장! (기분: {mood})",
+                "prompt_hint": f"지금 화면에서 변한 것에만 반응. 감탄사 위주! 1문장! 설명 금지! (기분: {mood})",
             }
 
         # Scene budget — max 2 comments on same unchanged scene
@@ -186,7 +190,7 @@ class PersonalityEngine:
                 "max_tokens": 120,
                 "temperature": 0.6 + intensity * 0.3,
                 "delay_sec": delay,
-                "prompt_hint": f"화면 변화에 반응. 1-2문장. (기분: {mood})",
+                "prompt_hint": f"이전 화면과 뭐가 달라졌는지 파악하고 그것에만 반응. 안 변한 건 무시. 1-2문장. (기분: {mood})",
             }
 
         # Cooldown — stay quiet
@@ -207,14 +211,25 @@ class PersonalityEngine:
                 self.state.speak_count += 1
                 self.state.consecutive_silences = 0
                 self._idle_chat_count += 1
+
+                # Pick a specific topic direction — never generic "잡담"
+                topic_directions = [
+                    "플레이어에게 질문해봐. 예: '이 게임 얼마나 했어?', '다른 캐릭터 해봤어?'",
+                    "게임 자체에 대한 감상. 예: '이 게임 BGM 좋지 않아?', '그래픽 괜찮네'",
+                    "다른 게임이나 추억 얘기. 예: '이거 예전에 했던 거랑 비슷한데', '옛날 생각난다'",
+                    "캐릭터 자신의 상태. 예: '아 졸려', '배고프다', '심심해서 죽겠네'",
+                    "유머/엉뚱한 관찰. 화면에 있는 뭔가를 웃기게 해석해봐.",
+                    "가벼운 조언. 예: '저장 했어?', '인벤토리 정리 좀 해'",
+                ]
+                # Don't repeat the same direction
+                direction = random.choice(topic_directions)
+
                 return ResponseMode.CHAT, {
-                    "max_tokens": 100,
+                    "max_tokens": 80,
                     "temperature": 0.9,
                     "delay_sec": random.uniform(2.0, 6.0),
                     "prompt_hint": (
-                        "화면에 특별한 건 없음. 게임 관련 잡담, 독백, 혼잣말. "
-                        "캐릭터 성격에 맞는 자연스러운 한마디. "
-                        "화면 묘사 금지. 이전에 했던 말과 다른 주제로."
+                        f"화면 묘사 금지. 이 방향으로 한마디만: {direction}"
                     ),
                 }
 
