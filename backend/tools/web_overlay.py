@@ -363,7 +363,13 @@ def main() -> None:
             signal = detector.analyze(frame)
 
             # --- Layer 2: Personality engine decides response ---
-            mode, config = personality.decide(signal.score, signal.label)
+            cv_context = {
+                "motion_center": signal.motion_center if hasattr(signal, 'motion_center') else 0,
+                "motion_edges": signal.motion_edges if hasattr(signal, 'motion_edges') else 0,
+                "menu_likely": signal.menu_likely if hasattr(signal, 'menu_likely') else False,
+                "brightness": signal.brightness if hasattr(signal, 'brightness') else 128,
+            }
+            mode, config = personality.decide(signal.score, signal.label, cv_context)
 
             if mode == ResponseMode.SILENT:
                 # Stay quiet — check again after short interval
@@ -409,7 +415,8 @@ def main() -> None:
                     continue
 
                 # --- Layer 3: Claude API call ---
-                img_b64 = frame_to_base64(frame)
+                img_size = 512 if mode == ResponseMode.BURST else 1024
+                img_b64 = frame_to_base64(frame, max_size=img_size)
                 max_tokens = config.get("max_tokens", 80)
                 temperature = config.get("temperature", 0.7)
                 prompt_hint = config.get("prompt_hint", "")
@@ -423,8 +430,11 @@ def main() -> None:
                 # CV context (structured, helps Claude understand what's happening)
                 prompt_text += (
                     f"[화면 분석] 움직임:{signal.motion_pct:.0f}% "
+                    f"중앙:{getattr(signal, 'motion_center', 0):.0f}% "
+                    f"가장자리:{getattr(signal, 'motion_edges', 0):.0f}% "
                     f"장면전환:{'O' if signal.scene_change else 'X'} "
-                    f"UI변화:{'O' if signal.ui_change else 'X'}\n"
+                    f"메뉴:{'O' if getattr(signal, 'menu_likely', False) else 'X'} "
+                    f"밝기:{getattr(signal, 'brightness', 128):.0f}\n"
                 )
 
                 # Event log (what happened recently)

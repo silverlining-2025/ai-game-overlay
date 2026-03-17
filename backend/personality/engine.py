@@ -99,6 +99,11 @@ class PersonalityEngine:
     to different response modes with natural timing.
     """
 
+    # Thresholds for motion-based combat detection
+    COMBAT_MOTION_THRESHOLD = 0.05   # 5% center motion = likely combat
+    COMBAT_END_THRESHOLD = 0.01      # <1% center motion = combat ended
+    COMBAT_STREAK_REQUIRED = 3       # consecutive cycles to trigger state change
+
     def __init__(self):
         self.state = PersonalityState()
         now = time.time()
@@ -117,9 +122,23 @@ class PersonalityEngine:
         self._idle_chat_count = 0        # consecutive idle chats
         self._scene_comment_count = 0    # comments on same scene state
         self._last_scene_label = ""      # last scene state we commented on
+        self._high_motion_streak = 0     # consecutive high center-motion cycles
+        self._low_motion_streak = 0      # consecutive low center-motion cycles
+        self._last_brightness = -1.0     # previous brightness for delta detection
 
-    def decide(self, event_score: float, event_label: str) -> tuple[ResponseMode, dict]:
-        """Given an event score, decide what to do."""
+    def decide(self, event_score: float, event_label: str,
+               cv_context: dict | None = None) -> tuple[ResponseMode, dict]:
+        """Given an event score and optional CV spatial data, decide what to do.
+
+        Args:
+            event_score: 0.0~1.0 importance from event detector.
+            event_label: category string (idle, event, major, scene_change, ...).
+            cv_context: optional dict with spatial CV signals:
+                - motion_center (float): motion intensity in center zones
+                - motion_edges (float): motion intensity in edge zones
+                - menu_likely (bool): whether a menu was detected
+                - brightness (float): average screen brightness 0.0~1.0
+        """
         now = time.time()
         dt = now - self._last_update
         self._last_update = now
@@ -127,24 +146,51 @@ class PersonalityEngine:
         since_speak = now - self.state.last_speak_time
         since_event = now - self.state.last_event_time
 
-        # Decay emotions
-        self.state.emotions.decay(dt)
+        # Decay emotions (brightness-aware)
+        self._decay_emotions(dt, cv_context)
 
-        # Boost emotions based on event
+        # Boost emotions based on event + brightness
         self._apply_event_boost(event_score, event_label)
+        self._apply_brightness_mood(cv_context)
 
         # Track event timing and combat state
         if event_score > 0.3:
             self.state.last_event_time = now
             self._idle_chat_count = 0  # Reset idle counter on real events
 
-        # Detect combat state from event labels
+        # Detect combat state from event labels (original logic)
         if event_label in ("major", "scene_change") and event_score >= 0.7:
             self._in_combat = True
             self._scene_comment_count = 0  # New scene, reset budget
             self._last_scene_label = event_label
         elif event_label == "idle" and self.state.consecutive_silences > 5:
             self._in_combat = False
+
+        # Detect combat state from motion patterns (Improvement 2)
+        self._update_combat_from_motion(cv_context)
+
+        # Apply CV spatial threshold adjustments (Improvement 1)
+        effective_burst = self.burst_threshold
+        effective_react = self.react_threshold
+        force_allow = False
+
+        if cv_context:
+            motion_center = cv_context.get("motion_center", 0.0)
+            motion_edges = cv_context.get("motion_edges", 0.0)
+            menu_likely = cv_context.get("menu_likely", False)
+
+            if menu_likely:
+                # Menus are state changes worth noting — always allow
+                force_allow = True
+
+            if motion_center > 0 and motion_edges == 0:
+                # Center-only motion = gameplay animation, raise thresholds
+                effective_burst += 0.1
+                effective_react += 0.1
+            elif motion_edges > motion_center:
+                # Edge motion > center = UI change, lower thresholds
+                effective_burst = max(0.1, effective_burst - 0.1)
+                effective_react = max(0.1, effective_react - 0.1)
 
         # Track same-scene comments — if scene hasn't changed, budget exhausts
         if event_label == self._last_scene_label and event_label not in ("scene_change", "major"):
@@ -163,7 +209,7 @@ class PersonalityEngine:
         # --- Decision logic ---
 
         # BIG EVENT — burst reaction (short cooldown)
-        if event_score >= self.burst_threshold and since_speak >= self.burst_cooldown_sec:
+        if event_score >= effective_burst and since_speak >= self.burst_cooldown_sec:
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
             mood = self.state.emotions.label_kr()
@@ -174,13 +220,25 @@ class PersonalityEngine:
                 "prompt_hint": f"지금 화면에서 변한 것에만 반응. 감탄사 위주! 1문장! 설명 금지! (기분: {mood})",
             }
 
+        # Menu detected — always allow a reaction even if score is low
+        if force_allow and since_speak >= self.burst_cooldown_sec:
+            self.state.speak_count += 1
+            self.state.consecutive_silences = 0
+            mood = self.state.emotions.label_kr()
+            return ResponseMode.REACT, {
+                "max_tokens": 120,
+                "temperature": 0.6,
+                "delay_sec": random.uniform(0.3, 1.0),
+                "prompt_hint": f"메뉴/UI가 열렸다. 간단히 반응. 1문장. (기분: {mood})",
+            }
+
         # Scene budget — max 2 comments on same unchanged scene
-        if self._scene_comment_count >= 2 and event_score < self.burst_threshold:
+        if self._scene_comment_count >= 2 and event_score < effective_burst:
             self.state.consecutive_silences += 1
             return ResponseMode.SILENT, {}
 
         # MEDIUM EVENT — normal reaction (dynamic cooldown)
-        if event_score >= self.react_threshold and since_speak >= active_cooldown:
+        if event_score >= effective_react and since_speak >= active_cooldown:
             delay = random.uniform(0.5, 2.0)
             self.state.speak_count += 1
             self.state.consecutive_silences = 0
@@ -236,6 +294,73 @@ class PersonalityEngine:
         # Nothing to say
         self.state.consecutive_silences += 1
         return ResponseMode.SILENT, {}
+
+    def _update_combat_from_motion(self, cv_context: dict | None):
+        """Update combat state based on sustained center-motion patterns."""
+        if cv_context is None:
+            return
+
+        motion_center = cv_context.get("motion_center", 0.0)
+
+        if motion_center > self.COMBAT_MOTION_THRESHOLD:
+            self._high_motion_streak += 1
+            self._low_motion_streak = 0
+        elif motion_center < self.COMBAT_END_THRESHOLD:
+            self._low_motion_streak += 1
+            self._high_motion_streak = 0
+        else:
+            # In between — don't reset either streak, just don't increment
+            pass
+
+        if self._high_motion_streak >= self.COMBAT_STREAK_REQUIRED and not self._in_combat:
+            self._in_combat = True
+            log.debug("Combat detected from sustained center motion")
+
+        if self._low_motion_streak >= self.COMBAT_STREAK_REQUIRED and self._in_combat:
+            self._in_combat = False
+            log.debug("Combat ended — center motion subsided")
+
+    def _decay_emotions(self, dt: float, cv_context: dict | None):
+        """Decay emotions, with brightness-aware tension adjustment.
+
+        Consistently high brightness (outdoors/peaceful) reduces tension faster.
+        """
+        e = self.state.emotions
+
+        # Base decay
+        rate = 0.08 * dt
+        e.excitement = max(0, e.excitement - rate)
+        e.amusement = max(0, e.amusement - rate * 1.2)
+        e.concern = max(0, e.concern - rate * 0.7)
+
+        # Brightness-aware tension decay
+        tension_rate = rate * 0.5  # default slow decay
+        if cv_context and "brightness" in cv_context:
+            brightness = cv_context["brightness"]
+            if brightness > 0.6:
+                # Bright screen (peaceful area) — tension decays faster
+                tension_rate = rate * 1.0
+        e.tension = max(0, e.tension - tension_rate)
+
+    def _apply_brightness_mood(self, cv_context: dict | None):
+        """Adjust mood based on brightness changes.
+
+        Sudden brightness drop (death/danger screen) boosts tension.
+        """
+        if cv_context is None or "brightness" not in cv_context:
+            return
+
+        brightness = cv_context["brightness"]
+        e = self.state.emotions
+
+        if self._last_brightness >= 0:
+            delta = self._last_brightness - brightness  # positive = got darker
+            if delta > 0.2:
+                # Significant darkening — danger/death
+                e.tension = min(1.0, e.tension + 0.3)
+                log.debug("Brightness drop %.2f → tension boost", delta)
+
+        self._last_brightness = brightness
 
     def _apply_event_boost(self, score: float, label: str):
         """Boost emotional state based on event type."""
