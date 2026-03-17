@@ -110,11 +110,13 @@ class PersonalityEngine:
         self.cooldown_sec = 5.0          # default cooldown (exploration pace)
         self.combat_cooldown_sec = 1.5   # faster during combat
         self.burst_cooldown_sec = 1.0    # shortest for big events
-        self.idle_chat_after = 10.0      # seconds of silence before idle chat
+        self.idle_chat_after = 45.0      # seconds before first idle chat (silence is closeness)
         self.burst_threshold = 0.7       # event score to trigger burst
         self.react_threshold = 0.5       # raised from 0.4 — less chatty during exploration
         self._in_combat = False          # track combat state for dynamic cooldown
-        self._idle_chat_count = 0        # consecutive idle chats (max 3)
+        self._idle_chat_count = 0        # consecutive idle chats
+        self._scene_comment_count = 0    # comments on same scene state
+        self._last_scene_label = ""      # last scene state we commented on
 
     def decide(self, event_score: float, event_label: str) -> tuple[ResponseMode, dict]:
         """Given an event score, decide what to do."""
@@ -139,8 +141,17 @@ class PersonalityEngine:
         # Detect combat state from event labels
         if event_label in ("major", "scene_change") and event_score >= 0.7:
             self._in_combat = True
+            self._scene_comment_count = 0  # New scene, reset budget
+            self._last_scene_label = event_label
         elif event_label == "idle" and self.state.consecutive_silences > 5:
             self._in_combat = False
+
+        # Track same-scene comments — if scene hasn't changed, budget exhausts
+        if event_label == self._last_scene_label and event_label not in ("scene_change", "major"):
+            self._scene_comment_count += 0  # Don't increment on silent cycles
+        elif event_label != self._last_scene_label:
+            self._scene_comment_count = 0
+            self._last_scene_label = event_label
 
         # Dynamic cooldown based on state
         active_cooldown = self.combat_cooldown_sec if self._in_combat else self.cooldown_sec
@@ -158,6 +169,11 @@ class PersonalityEngine:
                 "delay_sec": random.uniform(0, 0.3),
                 "prompt_hint": f"짧게! 1문장! (기분: {mood})",
             }
+
+        # Scene budget — max 2 comments on same unchanged scene
+        if self._scene_comment_count >= 2 and event_score < self.burst_threshold:
+            self.state.consecutive_silences += 1
+            return ResponseMode.SILENT, {}
 
         # MEDIUM EVENT — normal reaction (dynamic cooldown)
         if event_score >= self.react_threshold and since_speak >= active_cooldown:
@@ -178,14 +194,15 @@ class PersonalityEngine:
             self.state.consecutive_silences += 1
             return ResponseMode.SILENT, {}
 
-        # IDLE — nothing for a while (max 3, then go silent)
-        idle_chats_in_row = getattr(self, '_idle_chat_count', 0)
-        if since_event > self.idle_chat_after and since_speak > self.idle_chat_after * 0.8:
-            if idle_chats_in_row >= 3:
-                # Already chatted 3 times idle — go quiet
-                self.state.consecutive_silences += 1
-                return ResponseMode.SILENT, {}
-            idle_probability = min(0.25, 0.05 + (since_speak - self.idle_chat_after) * 0.02)
+        # IDLE — exponential backoff (1st: 45s, 2nd: 120s, 3rd: 300s, then silent forever)
+        idle_thresholds = [self.idle_chat_after, self.idle_chat_after * 2.5, self.idle_chat_after * 6]
+        if self._idle_chat_count >= len(idle_thresholds):
+            # Fully exhausted — go silent until real event
+            self.state.consecutive_silences += 1
+            return ResponseMode.SILENT, {}
+        current_idle_threshold = idle_thresholds[self._idle_chat_count]
+        if since_event > current_idle_threshold and since_speak > current_idle_threshold * 0.8:
+            idle_probability = 0.15
             if random.random() < idle_probability:
                 self.state.speak_count += 1
                 self.state.consecutive_silences = 0
@@ -225,6 +242,7 @@ class PersonalityEngine:
     def mark_spoken(self):
         """Call AFTER a successful API response to update the cooldown timer."""
         self.state.last_speak_time = time.time()
+        self._scene_comment_count += 1
 
     def get_emotion_context(self) -> str:
         """Return natural-language emotional context for the prompt."""

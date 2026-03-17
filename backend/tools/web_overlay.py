@@ -483,6 +483,18 @@ def main() -> None:
                 dialogue = dialogue.strip()
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 api_calls += 1
+
+                # [SKIP] escape hatch — Claude chose silence
+                if dialogue == "[SKIP]" or dialogue.startswith("[SKIP]"):
+                    log.info("[c%d] SKIP (%.0fms, %s) Claude chose silence", cycle, elapsed_ms, signal.label)
+                    total_input_tokens += input_tokens
+                    total_output_tokens += output_tokens
+                    cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
+                    cost_str = f"{cost:.4f}"
+                    if _SHUTDOWN.wait(timeout=args.interval):
+                        break
+                    continue
+
                 personality.mark_spoken()
 
                 # Track costs
