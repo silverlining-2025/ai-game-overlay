@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ConsentScreen from "./screens/ConsentScreen";
 import ConfigScreen from "./screens/ConfigScreen";
 import OverlayScreen from "./screens/OverlayScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -8,6 +9,9 @@ import "./App.css";
 export default function App() {
   const [mode, setMode] = useState<"config" | "overlay">("config");
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [consented, setConsented] = useState(
+    () => localStorage.getItem("privacy_consent") === "true"
+  );
 
   useEffect(() => {
     // Route based on hash: #overlay = overlay mode
@@ -50,6 +54,10 @@ export default function App() {
         <OverlayScreen config={config} />
       </ErrorBoundary>
     );
+  }
+
+  if (!consented) {
+    return <ConsentScreen onConsent={() => setConsented(true)} />;
   }
 
   return <ConfigScreen onStart={handleStart} />;

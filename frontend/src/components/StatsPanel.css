@@ -1,0 +1,101 @@
+.stats-panel {
+  pointer-events: auto;
+  position: fixed;
+  width: 230px;
+  background: rgba(14, 14, 32, 0.88);
+  border: 1px solid #3d3d6a;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(109, 40, 217, 0.15);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: stats-in 0.25s ease;
+  z-index: 100000;
+}
+
+/* Position based on overlay corner — default bottom-left */
+.overlay-top-right .stats-panel { bottom: 24px; left: 24px; }
+.overlay-top-left .stats-panel { bottom: 24px; right: 24px; }
+.overlay-bottom-right .stats-panel { top: 24px; left: 24px; }
+.overlay-bottom-left .stats-panel { top: 24px; right: 24px; }
+
+@keyframes stats-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.stats-header {
+  font-family: 'Malgun Gothic', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c084fc;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+}
+
+.stats-label {
+  font-family: 'Malgun Gothic', sans-serif;
+  font-size: 11px;
+  color: #8888bb;
+}
+
+.stats-value {
+  font-family: 'Consolas', 'Malgun Gothic', monospace;
+  font-size: 12px;
+  color: #e0e0f0;
+  font-weight: 600;
+}
+
+.stats-cost {
+  color: #22c55e;
+}
+
+.stats-up::before { content: "\01F44D "; }
+.stats-down::before { content: "\01F44E "; }
+
+.stats-up {
+  color: #4ade80;
+}
+
+.stats-down {
+  color: #f87171;
+}
+
+.stats-sub {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0 3px 8px;
+  font-family: 'Malgun Gothic', sans-serif;
+  font-size: 10px;
+  color: #5a5a8a;
+}
+
+.stats-divider {
+  height: 1px;
+  background: #2d2d5a;
+  margin: 8px 0;
+}
+
+.stats-section-label {
+  font-family: 'Malgun Gothic', sans-serif;
+  font-size: 10px;
+  color: #6d6d9a;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stats-event-row .stats-label {
+  font-size: 10px;
+}
+
+.stats-event-row .stats-value {
+  font-size: 11px;
+}

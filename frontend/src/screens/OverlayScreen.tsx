@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useReducer } from "react";
 import type { AppConfig, CompanionReaction } from "../types";
 import CharacterAvatar from "../components/CharacterAvatar";
+import FeedbackForm from "../components/FeedbackForm";
+import StatsPanel from "../components/StatsPanel";
+import type { SessionStats } from "../components/StatsPanel";
 import "./OverlayScreen.css";
 
 // Module-level Tauri imports (avoid dynamic import in hot paths)
@@ -90,9 +93,75 @@ export default function OverlayScreen({ config }: Props) {
   const typewriterRef = useRef<number | null>(null);
   const bubbleTimer = useRef<number | null>(null);
   const isStreamingRef = useRef(false);
-  const [statusText, setStatusText] = useState("");
+  const [statusText] = useState("");
   const [debugInfo, setDebugInfo] = useState("");
   const [showDebug, setShowDebug] = useState(false);
+
+  // Text feedback form (Alt+F)
+  const [showTextFeedback, setShowTextFeedback] = useState(false);
+
+  // Session stats panel (Ctrl+Shift+S)
+  const [showStats, setShowStats] = useState(false);
+  const statsRef = useRef<SessionStats>({
+    sessionStart: Date.now(),
+    reactionCount: { burst: 0, react: 0, chat: 0 },
+    apiCalls: 0,
+    totalCost: 0,
+    feedbackUp: 0,
+    feedbackDown: 0,
+    events: {},
+  });
+  const [stats, setStats] = useState<SessionStats>(statsRef.current);
+
+  const updateStats = useCallback((updater: (s: SessionStats) => void) => {
+    updater(statsRef.current);
+    setStats({ ...statsRef.current });
+  }, []);
+
+  // Feedback buttons state
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<"up" | "down" | null>(null);
+  const feedbackTimer = useRef<number | null>(null);
+  const lastCycleRef = useRef<number>(0);
+  const lastTextRef = useRef<string>("");
+
+  const sendFeedback = useCallback(async (rating: "up" | "down") => {
+    setFeedbackGiven(rating);
+    updateStats(s => {
+      if (rating === "up") s.feedbackUp++;
+      else s.feedbackDown++;
+    });
+    try {
+      await fetch("http://localhost:8080/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cycle: lastCycleRef.current,
+          text: lastTextRef.current,
+          rating,
+          game: config.game,
+          character: config.character,
+        }),
+      });
+    } catch { /* ignore */ }
+    // Hide after brief confirmation
+    setTimeout(() => {
+      setShowFeedback(false);
+      setFeedbackGiven(null);
+    }, 800);
+  }, [config.game, config.character, updateStats]);
+
+  const showFeedbackButtons = useCallback((cycle: number, text: string) => {
+    lastCycleRef.current = cycle;
+    lastTextRef.current = text;
+    setFeedbackGiven(null);
+    setShowFeedback(true);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = window.setTimeout(() => {
+      setShowFeedback(false);
+      setFeedbackGiven(null);
+    }, 6000);
+  }, []);
 
   // Drag support
   const isDragging = useRef(false);
@@ -150,6 +219,16 @@ export default function OverlayScreen({ config }: Props) {
       // Ctrl+Shift+D toggles debug bar
       if (e.key === "D" && e.ctrlKey && e.shiftKey) {
         setShowDebug(prev => !prev);
+      }
+      // Ctrl+Shift+S toggles session stats panel
+      if (e.key === "S" && e.ctrlKey && e.shiftKey) {
+        e.preventDefault();
+        setShowStats(prev => !prev);
+      }
+      // Alt+F toggles text feedback form
+      if (e.key === "f" && e.altKey) {
+        e.preventDefault();
+        setShowTextFeedback(prev => !prev);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -228,9 +307,33 @@ export default function OverlayScreen({ config }: Props) {
           dispatch({ type: "RESPONSE", payload: r });
           dispatch({ type: "SPEAKING_DONE" });
           if (speechRef.current) speechRef.current.textContent = data.text;
+
+          // Track stats from stream_end
+          updateStats(s => {
+            s.apiCalls++;
+            const mode = data.debug?.mode || "react";
+            if (mode === "burst") s.reactionCount.burst++;
+            else if (mode === "chat") s.reactionCount.chat++;
+            else s.reactionCount.react++;
+            // Parse cost from debug or cost_estimate
+            const costStr = data.debug?.cost || data.cost_estimate || "0";
+            const costNum = parseFloat(String(costStr).replace(/[^0-9.]/g, ""));
+            if (!isNaN(costNum)) s.totalCost += costNum;
+            // Track event type
+            if (data.debug?.event) {
+              const evt = data.debug.event as string;
+              s.events[evt] = (s.events[evt] || 0) + 1;
+            }
+          });
+
           if (data.debug) {
             const d = data.debug;
             setDebugInfo(`#${d.cycle} | ${d.ms}ms | $${d.cost} | ${d.event}(${d.score}) | ${d.mode}`);
+          }
+
+          // Show feedback buttons after stream completes
+          if (data.cycle > 0) {
+            showFeedbackButtons(data.cycle, data.text);
           }
 
           if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
@@ -251,6 +354,18 @@ export default function OverlayScreen({ config }: Props) {
           };
           dispatch({ type: "RESPONSE", payload: r });
           typewriteText(r.text, () => dispatch({ type: "SPEAKING_DONE" }));
+
+          // Track stats from legacy response
+          updateStats(s => {
+            s.apiCalls++;
+            s.reactionCount.react++;
+            const costNum = parseFloat(String(r.costEstimate).replace(/[^0-9.]/g, ""));
+            if (!isNaN(costNum)) s.totalCost += costNum;
+          });
+
+          if (r.cycle > 0) {
+            showFeedbackButtons(r.cycle, r.text);
+          }
 
           if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
           const hideMs2 = Math.min(15000, Math.max(4000, r.text.length * 80));
@@ -329,11 +444,39 @@ export default function OverlayScreen({ config }: Props) {
                 {statusText}
               </div>
             )}
+            {showFeedback && !state.isThinking && (
+              <div className="feedback-buttons">
+                <button
+                  type="button"
+                  className={`feedback-btn ${feedbackGiven === "up" ? "feedback-selected-up" : ""} ${feedbackGiven === "down" ? "feedback-other" : ""}`}
+                  onClick={() => sendFeedback("up")}
+                  disabled={feedbackGiven !== null}
+                  title="좋아요"
+                >▲</button>
+                <button
+                  type="button"
+                  className={`feedback-btn ${feedbackGiven === "down" ? "feedback-selected-down" : ""} ${feedbackGiven === "up" ? "feedback-other" : ""}`}
+                  onClick={() => sendFeedback("down")}
+                  disabled={feedbackGiven !== null}
+                  title="별로에요"
+                >▼</button>
+              </div>
+            )}
           </div>
         )}
         <div className={`connection-dot ${state.connected ? "connected" : ""}`} />
         {showDebug && debugInfo && <div className="debug-bar">{debugInfo}</div>}
       </div>
+
+      {showTextFeedback && (
+        <FeedbackForm
+          onClose={() => setShowTextFeedback(false)}
+          game={config.game}
+          character={config.character}
+        />
+      )}
+
+      <StatsPanel visible={showStats} stats={stats} />
     </div>
   );
 }

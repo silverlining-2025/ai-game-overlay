@@ -48,7 +48,7 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
     if (!isNozomi) return;
 
     const key = isSpeaking ? `${mood}_speaking` : mood;
-    const img = NOZOMI_EXPRESSIONS[key] || NOZOMI_EXPRESSIONS[mood] || CHARACTER_DEFAULTS.nozomi;
+    const img = NOZOMI_EXPRESSIONS[key] || NOZOMI_EXPRESSIONS[mood] || CHARACTER_DEFAULTS.nozomi || "";
     setCurrentImg(img);
   }, [mood, isSpeaking, isNozomi]);
 
@@ -76,7 +76,7 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
   // Fallback
   return (
     <div className={`avatar-sprite mood-${mood}`}>
-      <div className="avatar-fallback">{character[0].toUpperCase()}</div>
+      <div className="avatar-fallback">{character.charAt(0).toUpperCase()}</div>
     </div>
   );
 }

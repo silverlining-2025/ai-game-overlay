@@ -156,9 +156,10 @@ def main() -> None:
 
     import anthropic
     import uvicorn
-    from fastapi import FastAPI
+    from datetime import datetime
+    from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, JSONResponse
     from sse_starlette.sse import EventSourceResponse
 
     from backend.capture.screen import create_capture
@@ -181,6 +182,53 @@ def main() -> None:
     async def shutdown():
         _SHUTDOWN.set()
         return {"status": "shutting down"}
+
+    @app.post("/feedback")
+    async def feedback(request: Request):
+        try:
+            body = await request.json()
+            game = body.get("game", args.game)
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "cycle": body.get("cycle", 0),
+                "text": body.get("text", ""),
+                "rating": body.get("rating", ""),
+                "game": game,
+                "character": body.get("character", args.character),
+            }
+            feedback_dir = _REPO_ROOT / "training_data" / game
+            feedback_dir.mkdir(parents=True, exist_ok=True)
+            feedback_path = feedback_dir / "feedback.jsonl"
+            with open(feedback_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            log.info("Feedback saved: cycle=%d rating=%s", entry["cycle"], entry["rating"])
+            return JSONResponse({"status": "ok"})
+        except Exception as e:
+            log.error("Feedback save error: %s", e)
+            return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+    @app.post("/text-feedback")
+    async def text_feedback(request: Request):
+        try:
+            body = await request.json()
+            game = body.get("game", args.game)
+            entry = {
+                "timestamp": body.get("timestamp", datetime.now().isoformat()),
+                "type": "text",
+                "text": body.get("text", ""),
+                "game": game,
+                "character": body.get("character", args.character),
+            }
+            feedback_dir = _REPO_ROOT / "training_data" / game
+            feedback_dir.mkdir(parents=True, exist_ok=True)
+            feedback_path = feedback_dir / "feedback.jsonl"
+            with open(feedback_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            log.info("Text feedback saved: %s", entry["text"][:60])
+            return JSONResponse({"status": "ok"})
+        except Exception as e:
+            log.error("Text feedback save error: %s", e)
+            return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
     @app.get("/stream")
     async def stream():
