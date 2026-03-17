@@ -136,7 +136,7 @@ async fn stop_companion(app: tauri::AppHandle) -> Result<(), String> {
             tauri::WebviewUrl::App("index.html".into()),
         )
         .title("AI Gaming Companion")
-        .inner_size(480.0, 640.0)
+        .inner_size(500.0, 780.0)
         .center()
         .resizable(false)
         .build()

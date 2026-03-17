@@ -13,13 +13,13 @@
       {
         "label": "config",
         "title": "AI Gaming Companion",
-        "width": 480,
-        "height": 640,
+        "width": 500,
+        "height": 780,
         "center": true,
         "transparent": false,
         "decorations": true,
         "alwaysOnTop": false,
-        "resizable": false,
+        "resizable": true,
         "url": "index.html"
       }
     ],

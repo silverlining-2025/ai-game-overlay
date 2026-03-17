@@ -4,7 +4,8 @@ html, body, #root {
   padding: 0;
   width: 100vw;
   height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   font-family: 'Malgun Gothic', 'Noto Sans KR', 'Segoe UI', sans-serif;
   color: #e0e0e0;
   user-select: none;
