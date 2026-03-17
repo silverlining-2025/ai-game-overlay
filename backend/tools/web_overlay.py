@@ -473,20 +473,25 @@ def main() -> None:
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_content}],
                 ) as stream:
+                    skip_checked = False
                     for event in stream:
                         if hasattr(event, 'type'):
                             if event.type == 'content_block_delta' and hasattr(event, 'delta'):
                                 chunk = getattr(event.delta, 'text', '')
                                 if chunk:
                                     dialogue += chunk
-                                    # Send streaming chunk to frontend
-                                    if first_token:
-                                        first_token = False
-                                        broadcast({"type": "stream_start"})
-                                    broadcast({
-                                        "type": "stream_chunk",
-                                        "text": chunk,
-                                    })
+                                    # Buffer first chars to check for [SKIP]
+                                    if not skip_checked and len(dialogue) >= 6:
+                                        skip_checked = True
+                                        if dialogue.strip().startswith("[SKIP"):
+                                            continue  # Don't stream [SKIP] to frontend
+                                    if skip_checked and not dialogue.strip().startswith("[SKIP"):
+                                        if first_token:
+                                            first_token = False
+                                            broadcast({"type": "stream_start"})
+                                        broadcast({"type": "stream_chunk", "text": chunk})
+                                    elif not skip_checked:
+                                        pass  # Still buffering
                             elif event.type == 'message_start' and hasattr(event, 'message'):
                                 usage = getattr(event.message, 'usage', None)
                                 if usage:
@@ -495,6 +500,10 @@ def main() -> None:
                                 usage = getattr(event, 'usage', None)
                                 if usage:
                                     output_tokens = getattr(usage, 'output_tokens', 0)
+                    # Flush buffered content if we were still buffering
+                    if not skip_checked and dialogue and not dialogue.strip().startswith("[SKIP"):
+                        broadcast({"type": "stream_start"})
+                        broadcast({"type": "stream_chunk", "text": dialogue})
 
                 dialogue = dialogue.strip()
                 elapsed_ms = (time.perf_counter() - t0) * 1000
