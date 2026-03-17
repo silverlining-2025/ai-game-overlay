@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import os
+import re
 import signal
 import sys
 import threading
@@ -88,6 +89,118 @@ def _load_html_page() -> str:
     if html_path.exists():
         return html_path.read_text(encoding="utf-8")
     return "<html><body><h1>overlay.html not found</h1></body></html>"
+
+
+
+# ---------- Structured Temporal Memory ----------
+
+def _make_session_state() -> dict:
+    """Create a fresh session state dict."""
+    return {
+        "location": "",
+        "activity": "",
+        "recent_events": [],   # list of {"text": str, "ts": float}
+        "active_quest": "",
+        "mood_trend": "",
+    }
+
+
+_STATE_RE = re.compile(
+    r'\[STATE:\s*'
+    r'location\s*=\s*(?P<location>[^,\]]*?)\s*,\s*'
+    r'activity\s*=\s*(?P<activity>[^,\]]*?)\s*'
+    r'(?:,\s*event\s*=\s*(?P<event>[^,\]]*?)\s*)?'
+    r'(?:,\s*quest\s*=\s*(?P<quest>[^,\]]*?)\s*)?'
+    r'(?:,\s*mood\s*=\s*(?P<mood>[^,\]]*?)\s*)?'
+    r'\]',
+    re.IGNORECASE,
+)
+
+_STATE_WINDOW_SEC = 60.0  # clear events older than this
+
+
+def _parse_and_strip_state(text: str, session_state: dict) -> str:
+    """Extract [STATE: ...] from Claude's response, update session_state, return cleaned text."""
+    match = _STATE_RE.search(text)
+    if not match:
+        return text
+
+    now = time.time()
+
+    loc = (match.group("location") or "").strip()
+    act = (match.group("activity") or "").strip()
+    evt = (match.group("event") or "").strip()
+    quest = (match.group("quest") or "").strip()
+    mood = (match.group("mood") or "").strip()
+
+    if loc and loc.lower() != "unknown":
+        session_state["location"] = loc
+    if act and act.lower() != "unknown":
+        session_state["activity"] = act
+    if quest:
+        session_state["active_quest"] = quest
+    if mood:
+        session_state["mood_trend"] = mood
+
+    # Add event to recent_events (keep last 3, within time window)
+    if evt and evt.lower() != "none":
+        session_state["recent_events"].append({"text": evt, "ts": now})
+
+    # Prune old events (older than 60s) and keep max 3
+    session_state["recent_events"] = [
+        e for e in session_state["recent_events"]
+        if now - e["ts"] < _STATE_WINDOW_SEC
+    ][-3:]
+
+    # Strip the [STATE: ...] line from displayed text
+    cleaned = text[:match.start()] + text[match.end():]
+    # Clean up trailing/leading whitespace and empty lines left behind
+    cleaned = cleaned.strip()
+    return cleaned
+
+
+def _build_state_context(session_state: dict) -> str:
+    """Format session_state as a compact context string for the next prompt."""
+    parts = []
+    if session_state["location"]:
+        parts.append(f"위치: {session_state['location']}")
+    if session_state["activity"]:
+        parts.append(f"활동: {session_state['activity']}")
+    if session_state["recent_events"]:
+        event_texts = [e["text"] for e in session_state["recent_events"]]
+        parts.append(f"최근: {' → '.join(event_texts)}")
+    if session_state["active_quest"]:
+        parts.append(f"퀘스트: {session_state['active_quest']}")
+    if session_state["mood_trend"]:
+        parts.append(f"분위기: {session_state['mood_trend']}")
+
+    if not parts:
+        return ""
+    return "[세션 상태] " + ", ".join(parts)
+
+
+def _check_state_contradictions(session_state: dict, cv_context: dict) -> None:
+    """Anti-fixation: reset state fields that contradict CV signals."""
+    activity = session_state.get("activity", "").lower()
+
+    # If state says combat but CV shows no motion in center, reset
+    if activity == "combat":
+        motion_center = cv_context.get("motion_center", 0)
+        motion_edges = cv_context.get("motion_edges", 0)
+        if motion_center < 5 and motion_edges < 5:
+            session_state["activity"] = "unknown"
+
+    # If state says menu but CV says no menu likely, reset
+    if activity == "menu":
+        if not cv_context.get("menu_likely", False):
+            session_state["activity"] = "unknown"
+
+    # If state says explore/travel but motion is zero, could be idle
+    if activity in ("explore", "travel"):
+        motion_center = cv_context.get("motion_center", 0)
+        motion_edges = cv_context.get("motion_edges", 0)
+        if motion_center < 2 and motion_edges < 2:
+            session_state["activity"] = "unknown"
 
 
 def _trigram_similarity(a: str, b: str) -> float:
@@ -338,6 +451,9 @@ def main() -> None:
         event_log: deque[str] = deque(maxlen=5)
         import datetime
 
+        # Structured temporal memory — tracks session state across responses
+        session_state = _make_session_state()
+
         REANCHOR_EVERY = 7
 
         # Prompt caching — cache system prompt by sending it as first user message
@@ -441,6 +557,12 @@ def main() -> None:
                 if event_log:
                     prompt_text += "[최근] " + " → ".join(event_log) + "\n"
 
+                # Structured temporal memory — session state context
+                _check_state_contradictions(session_state, cv_context)
+                state_ctx = _build_state_context(session_state)
+                if state_ctx:
+                    prompt_text += state_ctx + "\n"
+
                 # Anti-repetition — recent responses + covered topics
                 if history:
                     prompt_text += "반복 금지: " + " / ".join(h[:20] for h in history) + "\n"
@@ -518,6 +640,9 @@ def main() -> None:
                 dialogue = dialogue.strip()
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 api_calls += 1
+
+                # Extract and strip [STATE: ...] from response, update session state
+                dialogue = _parse_and_strip_state(dialogue, session_state)
 
                 # [SKIP] escape hatch — Claude chose silence
                 if dialogue == "[SKIP]" or dialogue.startswith("[SKIP]"):

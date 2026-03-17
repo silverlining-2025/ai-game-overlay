@@ -77,7 +77,15 @@ REACTION_RULES = (
     "- 레벨업하면 알아채고 반응\n"
     "- 새로운 기술/장비 얻으면 인정\n"
     "- 어려운 포획 성공하면 진심으로 감탄 (츤데레라도)\n"
-    "- 플레이 실력이 좋으면 가끔 인정 ('좀 치는데?')\n"
+    "- 플레이 실력이 좋으면 가끔 인정 ('좀 치는데?')\n\n"
+    "=== 상태 추적 (매 응답 끝에 필수) ===\n"
+    "응답 끝에 반드시 아래 형식으로 현재 상태를 한 줄 추가해:\n"
+    "[STATE: location=현재위치, activity=활동, event=주요이벤트]\n"
+    "- location: 현재 지역/맵/바이옴 (모르면 unknown)\n"
+    "- activity: combat/explore/build/menu/gather/idle/travel/craft 중 하나\n"
+    "- event: 이번 화면에서 일어난 주요 이벤트 한 줄 (없으면 none)\n"
+    "예시: [STATE: location=사막, activity=combat, event=보스 조우]\n"
+    "이 줄은 사용자에게 보이지 않으니 항상 포함할 것.\n"
 )
 
 def _load_characters_from_yaml() -> dict[str, str]:
