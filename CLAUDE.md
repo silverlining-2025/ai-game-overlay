@@ -140,7 +140,8 @@ This workflow applies to EVERY non-trivial task (3+ files or requiring research)
 - Define clear scope, expected output, and files touched for each agent
 - Identify dependencies (what must be sequential)
 - Use TodoWrite to track the plan
-- **Present the plan to the user before spawning agents**
+- **Present the plan to the user and WAIT for approval before spawning agents**
+- **NEVER proceed to Phase 3 without explicit user go-ahead**
 
 ### Phase 3: EXECUTE (parallel agents implement)
 - Spawn parallel agents for independent tasks
@@ -169,7 +170,7 @@ This workflow applies to EVERY non-trivial task (3+ files or requiring research)
 - Implementing without a plan
 - Editing 5+ files sequentially as the main agent
 - Doing research AND implementation in the same turn
-- Starting implementation without presenting plan to user
+- Starting implementation without user approving the plan
 - Committing without reviewing and testing agent output
 - Spawning agents with overlapping file scopes
 
