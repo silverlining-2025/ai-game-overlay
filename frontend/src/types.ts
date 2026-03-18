@@ -4,6 +4,7 @@ export interface AppConfig {
   interval: number;
   position: "top-right" | "top-left" | "bottom-right" | "bottom-left";
   chattiness: number;
+  locale: "ko" | "en";
 }
 
 export interface CompanionReaction {

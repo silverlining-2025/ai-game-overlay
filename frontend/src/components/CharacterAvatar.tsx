@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useRef, useState, memo, useCallback } from "react";
 import type { AppConfig } from "../types";
 import "./CharacterAvatar.css";
 
@@ -14,7 +14,7 @@ const NOZOMI_EXPRESSIONS: Record<string, string> = {
   "curious_speaking": "nozomi_casual_normaltalk.webp",
   "worried_speaking": "nozomi_casual_sadtalk1.webp",
   "chill_speaking": "nozomi_casual_normaltalk.webp",
-  "amused_speaking": "nozomi_casual_evilsmirk.webp",
+  "amused_speaking": "nozomi_casual_normaltalk.webp",
   "thinking_speaking": "nozomi_casual_normaltalk.webp",
   "angry_speaking": "nozomi_casual_angrytalk.webp",
   "sad_speaking": "nozomi_casual_sadtalk2.webp",
@@ -39,26 +39,105 @@ const CHARACTER_DEFAULTS: Record<string, string> = {
 };
 
 function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
-  const [currentImg, setCurrentImg] = useState("");
+  // Crossfade state: track current and previous images
+  const [frontImg, setFrontImg] = useState("");
+  const [backImg, setBackImg] = useState("");
+  const [showFront, setShowFront] = useState(true);
+
+  // Blink animation — randomized interval
+  const blinkRef = useRef<HTMLDivElement | null>(null);
+  const blinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isNozomi = character === "nozomi";
   const isLottie = LOTTIE_CHARACTERS.includes(character);
 
+  // Resolve expression image for current mood + speaking state
+  const resolveImage = useCallback(
+    (m: string, speaking: boolean): string => {
+      const key = speaking ? `${m}_speaking` : m;
+      return (
+        NOZOMI_EXPRESSIONS[key] ||
+        NOZOMI_EXPRESSIONS[m] ||
+        CHARACTER_DEFAULTS.nozomi ||
+        ""
+      );
+    },
+    [],
+  );
+
+  // Crossfade when expression changes
   useEffect(() => {
     if (!isNozomi) return;
 
-    const key = isSpeaking ? `${mood}_speaking` : mood;
-    const img = NOZOMI_EXPRESSIONS[key] || NOZOMI_EXPRESSIONS[mood] || CHARACTER_DEFAULTS.nozomi || "";
-    setCurrentImg(img);
-  }, [mood, isSpeaking, isNozomi]);
+    const nextImg = resolveImage(mood, isSpeaking);
+    const currentVisible = showFront ? frontImg : backImg;
+
+    if (nextImg === currentVisible) return; // no change
+
+    if (showFront) {
+      // Load next into back layer, then flip
+      setBackImg(nextImg);
+      // Allow a frame for the img src to set before transitioning
+      requestAnimationFrame(() => setShowFront(false));
+    } else {
+      setFrontImg(nextImg);
+      requestAnimationFrame(() => setShowFront(true));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mood, isSpeaking, isNozomi, resolveImage]);
+
+  // Initialize first image without transition
+  useEffect(() => {
+    if (!isNozomi) return;
+    const img = resolveImage(mood, isSpeaking);
+    setFrontImg(img);
+    setBackImg(img);
+    setShowFront(true);
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNozomi]);
+
+  // Eye blink cycle — randomized CSS class toggle
+  const scheduleBlink = useCallback(() => {
+    const delay = 3000 + Math.random() * 3000; // 3-6s
+    blinkTimerRef.current = setTimeout(() => {
+      const el = blinkRef.current;
+      if (el) {
+        el.classList.add("blink");
+        setTimeout(() => {
+          el.classList.remove("blink");
+          scheduleBlink();
+        }, 150);
+      }
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    scheduleBlink();
+    return () => {
+      if (blinkTimerRef.current) clearTimeout(blinkTimerRef.current);
+    };
+  }, [scheduleBlink]);
 
   if (isNozomi) {
+    const defaultSrc = `/characters/nozomi/${CHARACTER_DEFAULTS.nozomi}`;
     return (
-      <div className={`avatar-sprite mood-${mood} ${isSpeaking ? "speaking" : "idle"}`}>
+      <div
+        ref={blinkRef}
+        className={`avatar-sprite mood-${mood} ${isSpeaking ? "speaking" : "idle"}`}
+      >
+        {/* Back layer */}
         <img
-          src={`/characters/nozomi/${currentImg || CHARACTER_DEFAULTS.nozomi}`}
+          src={backImg ? `/characters/nozomi/${backImg}` : defaultSrc}
           alt={mood}
-          className="sprite-img"
+          className={`sprite-img crossfade-layer ${!showFront ? "crossfade-visible" : "crossfade-hidden"}`}
+          draggable={false}
+        />
+        {/* Front layer */}
+        <img
+          src={frontImg ? `/characters/nozomi/${frontImg}` : defaultSrc}
+          alt={mood}
+          className={`sprite-img crossfade-layer ${showFront ? "crossfade-visible" : "crossfade-hidden"}`}
           draggable={false}
         />
       </div>

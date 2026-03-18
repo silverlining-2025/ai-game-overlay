@@ -276,6 +276,8 @@ def main() -> None:
     parser.add_argument("--save-training", action="store_true", dest="save_training",
                         help="Save screenshots + AI responses as training data")
     parser.add_argument("--tts", action="store_true", help="Enable voice output (Edge TTS)")
+    parser.add_argument("--locale", type=str, default="ko", choices=["ko", "en"],
+                        help="UI/prompt language (ko=Korean, en=English)")
     args = parser.parse_args()
 
     import anthropic
@@ -412,7 +414,7 @@ def main() -> None:
             timeout=httpx.Timeout(30.0, connect=5.0),
             max_retries=2,
         )
-        base_system_prompt = get_system_prompt(args.game, args.character)
+        base_system_prompt = get_system_prompt(args.game, args.character, args.locale)
 
         # Layered architecture
         detector = EventDetector(game=args.game)
@@ -585,10 +587,16 @@ def main() -> None:
                 # System prompt with re-anchoring
                 system_prompt = base_system_prompt
                 if api_calls % REANCHOR_EVERY == 0:
-                    system_prompt += (
-                        "\n\n[리마인더] 캐릭터 유지. 한국어로만. "
-                        "분석/설명/영어 금지. 대사만 출력."
-                    )
+                    if args.locale == "en":
+                        system_prompt += (
+                            "\n\n[Reminder] Stay in character. English only. "
+                            "No analysis/explanation. Dialogue only."
+                        )
+                    else:
+                        system_prompt += (
+                            "\n\n[리마인더] 캐릭터 유지. 한국어로만. "
+                            "분석/설명/영어 금지. 대사만 출력."
+                        )
 
                 t0 = time.perf_counter()
                 display_b64 = frame_to_base64(frame, max_size=640, quality=60)

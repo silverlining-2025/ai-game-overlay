@@ -88,8 +88,45 @@ REACTION_RULES = (
     "이 줄은 사용자에게 보이지 않으니 항상 포함할 것.\n"
 )
 
-def _load_characters_from_yaml() -> dict[str, str]:
-    """Load character prompts from YAML config file."""
+REACTION_RULES_EN = (
+    "\n\n=== Absolute Rules ===\n"
+    "1. Only react to what's happening on screen RIGHT NOW. Never mention previous screens.\n"
+    "2. Do NOT describe static UI elements (HP bars, icons, quickslots).\n"
+    "3. If nothing is happening, make casual game-related chat. No UI descriptions.\n"
+    "4. Vary the character's speech patterns — don't repeat the same phrasing.\n"
+    "5. Keep it short when action is urgent; only go longer during downtime.\n"
+    "6. Never repeat the same line.\n"
+    "7. If unsure, stay silent. Being wrong is worse than saying nothing.\n"
+    "8. Respond in English only. No system text, no config dumps.\n"
+    "9. If there's nothing to say, output [SKIP] only. Don't force commentary. Silence is natural.\n"
+    "   - Screen hasn't changed → [SKIP]\n"
+    "   - Already reacted to the same thing → [SKIP]\n"
+    "   - Can only think of boring/repetitive comments → [SKIP]\n\n"
+    "=== Banned Patterns (don't start with these) ===\n"
+    "'What's that', 'Oh look', 'Huh? that' — overused openers.\n"
+    "Instead: be specific ('Yo that fire effect!'), emotional ('Whoa!'), action-oriented ('Dodge now!')\n\n"
+    "=== Acknowledge These ===\n"
+    "- Notice and react to level-ups\n"
+    "- Acknowledge new skills/equipment\n"
+    "- Genuinely admire difficult captures (even if tsundere)\n"
+    "- Occasionally acknowledge good plays ('Not bad, actually')\n\n"
+    "=== State Tracking (required at end of every response) ===\n"
+    "At the end of every response, add a state line in this format:\n"
+    "[STATE: location=current_location, activity=activity, event=key_event]\n"
+    "- location: current area/map/biome (use 'unknown' if unsure)\n"
+    "- activity: one of combat/explore/build/menu/gather/idle/travel/craft\n"
+    "- event: one-line summary of what happened this frame (use 'none' if nothing)\n"
+    "Example: [STATE: location=desert, activity=combat, event=boss encounter]\n"
+    "This line is hidden from the user, so always include it.\n"
+)
+
+def _load_characters_from_yaml(locale: str = "ko") -> dict[str, str]:
+    """Load character prompts from YAML config file.
+
+    If locale is 'en', uses personality_en / speech_style_en fields when
+    available, falling back to the Korean fields if the English variants
+    don't exist in the YAML.
+    """
     import yaml
     yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
     if not yaml_path.exists():
@@ -98,16 +135,23 @@ def _load_characters_from_yaml() -> dict[str, str]:
         data = yaml.safe_load(f)
     prompts = {}
     for char_id, char_data in data.items():
+        if not isinstance(char_data, dict):
+            continue  # skip non-character entries (e.g. reaction_rules_en)
         name = char_data.get("name", char_id)
         desc = char_data.get("description", "")
-        personality = char_data.get("personality", "")
-        speech = char_data.get("speech_style", "")
-        prompts[char_id] = f"넌 '{name}'야. {desc}\n\n{personality}\n{speech}"
+        if locale == "en":
+            personality = char_data.get("personality_en") or char_data.get("personality", "")
+            speech = char_data.get("speech_style_en") or char_data.get("speech_style", "")
+            prompts[char_id] = f"You are '{name}'. {desc}\n\n{personality}\n{speech}"
+        else:
+            personality = char_data.get("personality", "")
+            speech = char_data.get("speech_style", "")
+            prompts[char_id] = f"넌 '{name}'야. {desc}\n\n{personality}\n{speech}"
     return prompts
 
 
-# Load character prompts from YAML (with inline fallback)
-_YAML_CHARACTERS = _load_characters_from_yaml()
+# Load character prompts from YAML (with inline fallback) — Korean default
+_YAML_CHARACTERS = _load_characters_from_yaml("ko")
 
 CHARACTER_PROMPTS = _YAML_CHARACTERS if _YAML_CHARACTERS else {
     "nozomi": (
@@ -224,7 +268,13 @@ CHARACTER_PROMPTS = _YAML_CHARACTERS if _YAML_CHARACTERS else {
 DEFAULT_CHARACTER = "nozomi"
 
 
-def _get_character_prompt(character: str) -> str:
+def _get_character_prompt(character: str, locale: str = "ko") -> str:
+    if locale == "en":
+        # Reload from YAML with English locale for English prompts
+        en_chars = _load_characters_from_yaml("en")
+        char_prompts = en_chars if en_chars else CHARACTER_PROMPTS
+        default = char_prompts.get(DEFAULT_CHARACTER, "You are a gaming companion.")
+        return char_prompts.get(character, default) + REACTION_RULES_EN
     default = CHARACTER_PROMPTS.get(DEFAULT_CHARACTER, "넌 게임 친구야.")
     return CHARACTER_PROMPTS.get(character, default) + REACTION_RULES
 
@@ -380,8 +430,8 @@ GAME_CONTEXTS = {
 }
 
 
-def get_system_prompt(game: str, character: str = "nozomi") -> str:
-    char_prompt = _get_character_prompt(character)
+def get_system_prompt(game: str, character: str = "nozomi", locale: str = "ko") -> str:
+    char_prompt = _get_character_prompt(character, locale)
     game_context = GAME_CONTEXTS.get(game, GAME_CONTEXTS["general"])
     return char_prompt + game_context
 

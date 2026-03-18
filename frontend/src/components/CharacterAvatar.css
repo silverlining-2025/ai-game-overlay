@@ -6,73 +6,135 @@
   transition: transform 0.3s ease;
 }
 
-.sprite-img {
+/* ── Crossfade layers ─────────────────────────────────── */
+.crossfade-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
   object-position: top center;
-  transition: opacity 0.15s ease;
+  transition: opacity 300ms ease;
 }
 
-.transitioning .sprite-img {
-  opacity: 0.6;
+.crossfade-visible {
+  opacity: 1;
 }
 
-/* Idle breathing animation */
+.crossfade-hidden {
+  opacity: 0;
+}
+
+/* ── Eye blink (CSS squint illusion) ──────────────────── */
+.avatar-sprite.blink {
+  animation: eye-blink 150ms ease-in-out forwards !important;
+}
+
+@keyframes eye-blink {
+  0%, 100% {
+    clip-path: inset(0 0 0 0);
+  }
+  50% {
+    clip-path: inset(1px 0 1px 0);
+  }
+}
+
+/* ── Idle breathing animation ─────────────────────────── */
 .avatar-sprite.idle {
-  animation: idle-breathe 3s ease-in-out infinite;
+  animation: idle-breathe 3.5s ease-in-out infinite;
 }
 
 @keyframes idle-breathe {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  50% { transform: translateY(-2.5px); }
 }
 
-/* Speaking — subtle bounce */
+/* ── Speaking — subtle fast bounce ────────────────────── */
 .avatar-sprite.speaking {
   animation: speak-bounce 0.4s ease infinite;
 }
 
 @keyframes speak-bounce {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+  50% { transform: translateY(-1.5px); }
 }
 
-/* Mood-specific animations */
+/* ── Mood-specific animations ─────────────────────────── */
+
+/* Excited: faster bounce with slight scale */
 .mood-excited.idle {
-  animation: excited-bounce 0.6s ease infinite;
+  animation: excited-bounce 0.5s ease infinite;
 }
 
 @keyframes excited-bounce {
   0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-8px) scale(1.03); }
+  50% { transform: translateY(-6px) scale(1.03); }
 }
 
+.mood-excited.speaking {
+  animation: excited-bounce-speak 0.35s ease infinite;
+}
+
+@keyframes excited-bounce-speak {
+  0%, 100% { transform: translateY(0) scale(1.01); }
+  50% { transform: translateY(-4px) scale(1.03); }
+}
+
+/* Worried: slow gentle horizontal sway */
 .mood-worried.idle {
-  animation: worried-shake 2s ease-in-out infinite;
+  animation: worried-sway 3s ease-in-out infinite;
 }
 
-@keyframes worried-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px); }
-  75% { transform: translateX(2px); }
+@keyframes worried-sway {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(-1.5px) translateY(-1px); }
+  50% { transform: translateX(0) translateY(0); }
+  75% { transform: translateX(1.5px) translateY(-1px); }
 }
 
+/* Thinking: head tilt with slow return */
 .mood-thinking.idle {
-  animation: thinking-tilt 2.5s ease-in-out infinite;
+  animation: thinking-tilt 3s ease-in-out infinite;
 }
 
 @keyframes thinking-tilt {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(3deg); }
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  30% { transform: rotate(3deg) translateY(-1px); }
+  70% { transform: rotate(3deg) translateY(-1px); }
 }
 
+/* Amused: quick double-bounce */
 .mood-amused.idle {
-  animation: amused-wiggle 0.8s ease infinite;
+  animation: amused-double-bounce 1.2s ease infinite;
 }
 
-@keyframes amused-wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-2deg); }
-  75% { transform: rotate(2deg); }
+@keyframes amused-double-bounce {
+  0%, 100% { transform: translateY(0); }
+  15% { transform: translateY(-4px); }
+  25% { transform: translateY(0); }
+  35% { transform: translateY(-3px); }
+  45% { transform: translateY(0); }
+  /* Rest of cycle is still */
+}
+
+/* Chill: just breathing (uses default idle-breathe) — no override needed */
+
+/* ── Lottie container ─────────────────────────────────── */
+.lottie-container {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: 700;
+  color: rgba(109, 40, 217, 0.6);
+  background: rgba(109, 40, 217, 0.1);
+  border-radius: 50%;
 }

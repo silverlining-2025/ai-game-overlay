@@ -13,6 +13,7 @@ async fn start_companion(
     character: String,
     interval: f64,
     chattiness: Option<f64>,
+    locale: Option<String>,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
@@ -42,6 +43,7 @@ async fn start_companion(
     // Log the repo root for debugging
     eprintln!("[tauri] repo_root: {:?}", repo_root);
 
+    let locale_val = locale.unwrap_or_else(|| "ko".into());
     let backend = std::process::Command::new("python")
         .args([
             "-X", "utf8",
@@ -50,6 +52,7 @@ async fn start_companion(
             "--interval", &interval.to_string(),
             "--character", &character,
             "--chattiness", &format!("{:.1}", chattiness.unwrap_or(0.5)),
+            "--locale", &locale_val,
             "--port", "8080",
             "--headless",
             "--save-training",

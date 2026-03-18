@@ -46,6 +46,10 @@ export function initLocale(): void {
   const saved = localStorage.getItem("overlay-locale") as Locale | null;
   if (saved && saved in translations) {
     currentLocale = saved;
+  } else {
+    // Auto-detect from browser language
+    const browserLang = navigator.language ?? "";
+    currentLocale = browserLang.startsWith("ko") ? "ko" : "en";
   }
 }
 
