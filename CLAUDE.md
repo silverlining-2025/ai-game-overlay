@@ -122,41 +122,56 @@ Before each coding session:
 3. Read this file + check MEMORY.md for context
 4. Reference P1-P3 docs only when working on that specific area
 
-## Agentic Team Workflow (MANDATORY)
+## Engineering Workflow (MANDATORY)
 
-Claude is the **Planner + Orchestrator + Reviewer**. Agents are **Workers**.
+Claude is **Researcher + Planner + Orchestrator + Reviewer**. Agents are **Workers**.
+This workflow applies to EVERY non-trivial task (3+ files or requiring research).
 
-### Phase 1: PLAN (before any multi-step task)
+### Phase 1: RESEARCH (understand before acting)
+- Spawn research agent(s) to investigate the subject matter
+- Read relevant codebase sections
+- Search for best practices, prior art, evidence-based approaches
+- Compile findings into a concise analysis doc (in the conversation)
+- **Never skip this phase.** Uninformed implementation wastes time.
+
+### Phase 2: PLAN (design before building)
+- Based on research, create a concrete implementation plan
 - Decompose into independent, non-overlapping tasks
-- Define clear scope and expected output for each agent
+- Define clear scope, expected output, and files touched for each agent
 - Identify dependencies (what must be sequential)
 - Use TodoWrite to track the plan
+- **Present the plan to the user before spawning agents**
 
-### Phase 2: EXECUTE (spawn parallel agents)
-- Launch independent agents simultaneously
+### Phase 3: EXECUTE (parallel agents implement)
+- Spawn parallel agents for independent tasks
+- Each agent gets: specific files to modify, clear requirements, no overlap
 - Never do sequentially what can be done in parallel
 - Never duplicate work agents are doing
-- Monitor and redirect if agents go off-track
+- Monitor progress via file modification notifications
 
-### Phase 3: REVIEW (after agents complete)
-- Evaluate output against requirements
+### Phase 4: REVIEW (verify against the plan)
+- Evaluate each agent's output against the plan requirements
+- Run tests (TypeScript check, Python import check, functional tests)
+- Verify no conflicts between parallel agent outputs
 - Send back for improvements if insufficient
-- Only commit/push after review passes
-- Verify no conflicts between parallel outputs
+- Only commit/push after ALL checks pass
 
 ### Agent Roles (spawned as subagents)
 
 | Role | Responsibility |
 |------|---------------|
-| **Researcher** | Web search, reads prior art, explores codebase — feeds specs to coder |
-| **Coder** | Implements based on researcher findings + orchestrator plan |
+| **Researcher** | Web search, reads prior art, explores codebase — produces analysis |
+| **Coder** | Implements based on research findings + plan |
 | **Tester** | Runs tests, checks output, flags issues |
 
-**Anti-patterns (NEVER do these):**
+### Anti-patterns (NEVER do these)
+- Implementing without researching first
+- Implementing without a plan
 - Editing 5+ files sequentially as the main agent
 - Doing research AND implementation in the same turn
-- Starting implementation without planning tasks first
-- Committing without reviewing agent output
+- Starting implementation without presenting plan to user
+- Committing without reviewing and testing agent output
+- Spawning agents with overlapping file scopes
 
 **Pre-authorized actions** (no confirmation needed):
 - Edit/create files in this repo
