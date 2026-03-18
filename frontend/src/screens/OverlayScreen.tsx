@@ -259,11 +259,14 @@ export default function OverlayScreen({ config }: Props) {
 
       es.onopen = () => {
         dispatch({ type: "CONNECTED" });
-        // Greeting — character is alive from the start
-        if (speechRef.current) speechRef.current.textContent = "음~ 게임 시작하는 거야?";
+        // Greeting — character is alive from the start (locale-aware)
+        const savedConfig = localStorage.getItem("companion_config");
+        const locale = savedConfig ? JSON.parse(savedConfig).locale : "ko";
+        const greeting = locale === "en" ? "Hmm~ starting a game?" : "음~ 게임 시작하는 거야?";
+        if (speechRef.current) speechRef.current.textContent = greeting;
         dispatch({
           type: "RESPONSE",
-          payload: { text: "음~ 게임 시작하는 거야?", face: "", mood: "chill", cycle: 0, elapsedMs: 0, costEstimate: "" },
+          payload: { text: greeting, face: "", mood: "chill", cycle: 0, elapsedMs: 0, costEstimate: "" },
         });
         if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
         bubbleTimer.current = window.setTimeout(() => dispatch({ type: "HIDE_BUBBLE" }), 5000);
@@ -319,10 +322,10 @@ export default function OverlayScreen({ config }: Props) {
             if (mode === "burst") s.reactionCount.burst++;
             else if (mode === "chat") s.reactionCount.chat++;
             else s.reactionCount.react++;
-            // Parse cost from debug or cost_estimate
+            // Backend sends cumulative total cost — SET, don't add
             const costStr = data.debug?.cost || data.cost_estimate || "0";
             const costNum = parseFloat(String(costStr).replace(/[^0-9.]/g, ""));
-            if (!isNaN(costNum)) s.totalCost += costNum;
+            if (!isNaN(costNum)) s.totalCost = costNum;
             // Track event type
             if (data.debug?.event) {
               const evt = data.debug.event as string;
@@ -376,6 +379,13 @@ export default function OverlayScreen({ config }: Props) {
           bubbleTimer.current = window.setTimeout(() => {
             dispatch({ type: "HIDE_BUBBLE" });
           }, hideMs2);
+        } else if (data.type === "limit_reached") {
+          // Show limit message in speech bubble
+          if (speechRef.current) speechRef.current.textContent = data.text;
+          dispatch({
+            type: "RESPONSE",
+            payload: { text: data.text, face: "(._. )", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
+          });
         } else if (data.type === "error") {
           // Don't show raw errors to user — just hide the bubble
           dispatch({ type: "HIDE_BUBBLE" });

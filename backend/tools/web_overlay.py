@@ -247,24 +247,39 @@ def _parse_and_strip_state(text: str, session_state: dict) -> str:
     return cleaned
 
 
-def _build_state_context(session_state: dict) -> str:
+def _build_state_context(session_state: dict, locale: str = "ko") -> str:
     """Format session_state as a compact context string for the next prompt."""
     parts = []
-    if session_state["location"]:
-        parts.append(f"위치: {session_state['location']}")
-    if session_state["activity"]:
-        parts.append(f"활동: {session_state['activity']}")
-    if session_state["recent_events"]:
-        event_texts = [e["text"] for e in session_state["recent_events"]]
-        parts.append(f"최근: {' → '.join(event_texts)}")
-    if session_state["active_quest"]:
-        parts.append(f"퀘스트: {session_state['active_quest']}")
-    if session_state["mood_trend"]:
-        parts.append(f"분위기: {session_state['mood_trend']}")
+    if locale == "en":
+        if session_state["location"]:
+            parts.append(f"Location: {session_state['location']}")
+        if session_state["activity"]:
+            parts.append(f"Activity: {session_state['activity']}")
+        if session_state["recent_events"]:
+            event_texts = [e["text"] for e in session_state["recent_events"]]
+            parts.append(f"Recent: {' → '.join(event_texts)}")
+        if session_state["active_quest"]:
+            parts.append(f"Quest: {session_state['active_quest']}")
+        if session_state["mood_trend"]:
+            parts.append(f"Mood: {session_state['mood_trend']}")
+        header = "[Session State] "
+    else:
+        if session_state["location"]:
+            parts.append(f"위치: {session_state['location']}")
+        if session_state["activity"]:
+            parts.append(f"활동: {session_state['activity']}")
+        if session_state["recent_events"]:
+            event_texts = [e["text"] for e in session_state["recent_events"]]
+            parts.append(f"최근: {' → '.join(event_texts)}")
+        if session_state["active_quest"]:
+            parts.append(f"퀘스트: {session_state['active_quest']}")
+        if session_state["mood_trend"]:
+            parts.append(f"분위기: {session_state['mood_trend']}")
+        header = "[세션 상태] "
 
     if not parts:
         return ""
-    return "[세션 상태] " + ", ".join(parts)
+    return header + ", ".join(parts)
 
 
 def _check_state_contradictions(session_state: dict, cv_context: dict) -> None:
@@ -511,7 +526,20 @@ def main() -> None:
             timeout=httpx.Timeout(30.0, connect=5.0),
             max_retries=2,
         )
+
+        # --- Companion memory (persistent cross-session relationship) ---
+        from backend.memory.companion_memory import CompanionMemory
+        memory = CompanionMemory(args.game)
+        memory.increment_session()
+        memory.save()
+        log.info("Companion memory: session %d", memory.data["relationship"]["sessions_together"])
+
         base_system_prompt = get_system_prompt(args.game, args.character, args.locale)
+
+        # Inject companion memory context into system prompt
+        memory_context = memory.get_context_for_prompt()
+        if memory_context:
+            base_system_prompt += f"\n\n[동반자 기억]\n{memory_context}"
 
         # Layered architecture
         detector = EventDetector(game=args.game)
@@ -594,8 +622,10 @@ def main() -> None:
                     "settings_menu", "crafting_menu",
                 ):
                     signal.label = clip_label
-            except Exception:
-                pass
+            except Exception as clip_err:
+                if not hasattr(ai_loop, '_clip_warned'):
+                    ai_loop._clip_warned = True
+                    log.info("CLIP classifier not available: %s", clip_err)
 
             # --- Layer 2: Personality engine decides response ---
             cv_context = {
@@ -697,7 +727,7 @@ def main() -> None:
 
                 # Structured temporal memory — session state context
                 _check_state_contradictions(session_state, cv_context)
-                state_ctx = _build_state_context(session_state)
+                state_ctx = _build_state_context(session_state, locale=args.locale)
                 if state_ctx:
                     prompt_text += state_ctx + "\n"
 
@@ -824,6 +854,11 @@ def main() -> None:
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                 cost_str = f"{cost:.4f}"
                 usage_tracker.record_reaction(input_tokens, output_tokens)
+                memory.increment_reactions()
+
+                # Track notable moments in companion memory
+                if signal.label in ("major", "scene_change") and dialogue:
+                    memory.add_moment(dialogue[:50], signal.label)
 
                 log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
                          cycle, mode.value, elapsed_ms, signal.label, signal.score, dialogue[:60])
@@ -871,6 +906,11 @@ def main() -> None:
             wait = 0.5 if mode == ResponseMode.BURST else args.interval
             if _SHUTDOWN.wait(timeout=wait):
                 break
+
+        # After the while loop ends — save companion memory
+        memory.update_session(f"Played {args.game}, {api_calls} reactions")
+        memory.save()
+        log.info("Companion memory saved")
 
     # Start AI loop in background thread (SSE ping=15 handles keepalive)
     thread = threading.Thread(target=ai_loop, daemon=True)
