@@ -39,7 +39,6 @@
     ],
     "shortDescription": "AI-powered gaming companion overlay",
     "longDescription": "CV-based AI overlay for PC games. Captures screen via DXGI, processes with OpenCV and AI vision models, and displays real-time coaching insights through a transparent overlay. Anti-cheat safe — no memory reading, no injection, screen capture only.",
-    "_externalBin_comment": "Enable when PyInstaller backend exe is built: binaries/ai-game-overlay-backend"
   },
   "plugins": {
     "updater": {
