@@ -88,6 +88,10 @@ export default function OverlayScreen({ config }: Props) {
     reaction: null,
   });
 
+  // Micro-expression timer (VTuber-style idle animations)
+  const microExprRef = useRef<number | null>(null);
+  const [microMood, setMicroMood] = useState<string | null>(null);
+
   // DOM ref for typewriter (bypasses React render cycle)
   const speechRef = useRef<HTMLDivElement>(null);
   const typewriterRef = useRef<number | null>(null);
@@ -395,6 +399,23 @@ export default function OverlayScreen({ config }: Props) {
     };
   }, []);
 
+  // Micro-expression cycle: subtle idle mood shifts every 15-30s
+  useEffect(() => {
+    function scheduleMicro() {
+      const delay = 15000 + Math.random() * 15000; // 15-30s
+      microExprRef.current = window.setTimeout(() => {
+        if (!state.isThinking && !state.isSpeaking) {
+          const moods = ["curious", "amused", "chill", "blush"];
+          setMicroMood(moods[Math.floor(Math.random() * moods.length)] ?? null);
+          setTimeout(() => setMicroMood(null), 2500);
+        }
+        scheduleMicro();
+      }, delay);
+    }
+    scheduleMicro();
+    return () => { if (microExprRef.current) clearTimeout(microExprRef.current); };
+  }, []);
+
   const handleStop = useCallback(async () => {
     try {
       await tauriCore?.invoke("stop_companion");
@@ -430,7 +451,7 @@ export default function OverlayScreen({ config }: Props) {
         <div className="avatar-container" onClick={() => dispatch({ type: "TOGGLE_BUBBLE" })}>
           <CharacterAvatar
             character={config.character}
-            mood={state.isThinking ? "thinking" : state.detailedMood as any}
+            mood={state.isThinking ? "thinking" : (microMood || state.detailedMood) as any}
             isSpeaking={state.isSpeaking}
           />
         </div>

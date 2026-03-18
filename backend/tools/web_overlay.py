@@ -576,12 +576,35 @@ def main() -> None:
             # --- Layer 1: Local CV event detection (~3ms, free) ---
             signal = detector.analyze(frame)
 
+            # --- Layer 1.5: Optional CLIP scene classification (~50ms) ---
+            clip_label = ""
+            clip_confidence = 0.0
+            try:
+                from backend.cv.game_classifier import GameClassifier
+                if not hasattr(ai_loop, '_classifier'):
+                    ai_loop._classifier = GameClassifier()
+                clip_label, clip_confidence = ai_loop._classifier.classify(frame)
+
+                # Use CLIP to improve event detection labels
+                if clip_label == "loading_screen" and clip_confidence > 0.70:
+                    signal.label = "loading"
+                elif clip_confidence > 0.60 and clip_label in (
+                    "inventory", "pal_management", "technology_tree",
+                    "map_screen", "merchant_shop", "breeding_condenser",
+                    "settings_menu", "crafting_menu",
+                ):
+                    signal.label = clip_label
+            except Exception:
+                pass
+
             # --- Layer 2: Personality engine decides response ---
             cv_context = {
                 "motion_center": signal.motion_center if hasattr(signal, 'motion_center') else 0,
                 "motion_edges": signal.motion_edges if hasattr(signal, 'motion_edges') else 0,
                 "menu_likely": signal.menu_likely if hasattr(signal, 'menu_likely') else False,
                 "brightness": signal.brightness if hasattr(signal, 'brightness') else 128,
+                "clip_label": clip_label,
+                "clip_confidence": clip_confidence,
             }
             mode, config = personality.decide(signal.score, signal.label, cv_context)
 
@@ -663,6 +686,10 @@ def main() -> None:
                     f"메뉴:{'O' if getattr(signal, 'menu_likely', False) else 'X'} "
                     f"밝기:{getattr(signal, 'brightness', 128):.0f}\n"
                 )
+
+                # CLIP scene classification context
+                if clip_label and clip_confidence > 0:
+                    prompt_text += f"[장면 분류] {clip_label} ({clip_confidence:.0%})\n"
 
                 # Event log (what happened recently)
                 if event_log:
