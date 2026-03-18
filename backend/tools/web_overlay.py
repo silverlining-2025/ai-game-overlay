@@ -29,6 +29,7 @@ import threading
 import time
 import warnings
 from collections import deque
+from datetime import date, datetime
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
@@ -63,13 +64,100 @@ else:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-# Load .env
+# Load .env — environment variable takes priority over .env file
 _env_path = _REPO_ROOT / "backend" / ".env"
 if _env_path.exists():
     for line in _env_path.read_text().strip().splitlines():
         if "=" in line and not line.startswith("#"):
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
+
+if not os.environ.get("ANTHROPIC_API_KEY"):
+    log.warning("ANTHROPIC_API_KEY not found in env or .env file")
+
+
+# ---------- Daily Usage Tracker ----------
+
+class UsageTracker:
+    """Tracks daily API reaction counts and cost in a persistent JSON file."""
+
+    def __init__(self, max_reactions: int = 20):
+        self._path = _REPO_ROOT / "training_data" / ".usage.json"
+        self._max_reactions = max_reactions  # 0 = unlimited (premium)
+        self._lock = threading.Lock()
+        self._data = self._load()
+
+    def _empty(self) -> dict:
+        return {
+            "date": date.today().isoformat(),
+            "reactions": 0,
+            "api_calls": 0,
+            "cost_usd": 0.0,
+        }
+
+    def _load(self) -> dict:
+        try:
+            if self._path.exists():
+                data = json.loads(self._path.read_text(encoding="utf-8"))
+                if data.get("date") == date.today().isoformat():
+                    return data
+                # Date changed — reset for new day
+                log.info("New day detected, resetting usage counter")
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+        return self._empty()
+
+    def _save(self) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(
+            json.dumps(self._data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _maybe_reset(self) -> None:
+        """Reset if the stored date is not today (midnight rollover)."""
+        today = date.today().isoformat()
+        if self._data.get("date") != today:
+            log.info("Midnight rollover — resetting daily usage counter")
+            self._data = self._empty()
+
+    def check_limit(self) -> bool:
+        """Return True if under limit (or unlimited). False if limit reached."""
+        with self._lock:
+            self._maybe_reset()
+            if self._max_reactions == 0:
+                return True  # premium / unlimited
+            return self._data["reactions"] < self._max_reactions
+
+    def record_reaction(self, input_tokens: int, output_tokens: int) -> None:
+        """Increment reaction count and accumulate cost after a successful API response."""
+        with self._lock:
+            self._maybe_reset()
+            self._data["reactions"] += 1
+            self._data["api_calls"] += 1
+            cost = (input_tokens * 1.0 + output_tokens * 5.0) / 1_000_000
+            self._data["cost_usd"] = round(self._data["cost_usd"] + cost, 6)
+            self._save()
+
+    def record_api_call(self) -> None:
+        """Increment api_calls only (for SKIP/SUPPRESSED responses that still cost tokens)."""
+        with self._lock:
+            self._maybe_reset()
+            self._data["api_calls"] += 1
+            self._save()
+
+    def get_usage(self) -> dict:
+        """Return current usage stats for the /usage endpoint."""
+        with self._lock:
+            self._maybe_reset()
+            return {
+                "date": self._data["date"],
+                "reactions": self._data["reactions"],
+                "api_calls": self._data["api_calls"],
+                "limit": self._max_reactions,
+                "cost_usd": self._data["cost_usd"],
+            }
+
 
 # Import prompts from live_overlay
 from backend.tools.live_overlay import (
@@ -237,7 +325,6 @@ def _get_template_response(event_label: str, mode, character: str) -> str | None
 def _save_training_pair(frame, text: str, cycle: int, game: str) -> None:
     """Save screenshot + AI response as a training pair."""
     import cv2
-    from datetime import datetime
 
     train_dir = _REPO_ROOT / "training_data" / game / datetime.now().strftime("%Y%m%d")
     train_dir.mkdir(parents=True, exist_ok=True)
@@ -278,17 +365,23 @@ def main() -> None:
     parser.add_argument("--tts", action="store_true", help="Enable voice output (Edge TTS)")
     parser.add_argument("--locale", type=str, default="ko", choices=["ko", "en"],
                         help="UI/prompt language (ko=Korean, en=English)")
+    parser.add_argument("--max-reactions", type=int, default=20, dest="max_reactions",
+                        help="Daily reaction limit (0=unlimited/premium, default=20)")
     args = parser.parse_args()
 
     import anthropic
     import uvicorn
-    from datetime import datetime
     from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import HTMLResponse, JSONResponse
     from sse_starlette.sse import EventSourceResponse
 
     from backend.capture.screen import create_capture
+
+    # Initialize usage tracker
+    usage_tracker = UsageTracker(max_reactions=args.max_reactions)
+    log.info("Usage tracker: max_reactions=%d (%s)",
+             args.max_reactions, "unlimited" if args.max_reactions == 0 else "free tier")
 
     app = FastAPI()
     # CORS: allow all origins — server only binds to 127.0.0.1 so this is safe
@@ -355,6 +448,10 @@ def main() -> None:
         except Exception as e:
             log.error("Text feedback save error: %s", e)
             return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+    @app.get("/usage")
+    async def usage():
+        return JSONResponse(usage_tracker.get_usage())
 
     @app.get("/stream")
     async def stream():
@@ -451,7 +548,6 @@ def main() -> None:
 
         # Rolling event log — last 5 significant events with timestamps
         event_log: deque[str] = deque(maxlen=5)
-        import datetime
 
         # Structured temporal memory — tracks session state across responses
         session_state = _make_session_state()
@@ -500,6 +596,19 @@ def main() -> None:
             if delay > 0:
                 if _SHUTDOWN.wait(timeout=delay):
                     break
+
+            # --- Check daily reaction limit before API call ---
+            if not usage_tracker.check_limit():
+                log.info("[c%d] Daily reaction limit reached (%d/%d)",
+                         cycle, args.max_reactions, args.max_reactions)
+                broadcast({
+                    "type": "limit_reached",
+                    "text": "일일 반응 한도 도달",
+                })
+                # Continue CV detection loop but skip API
+                if _SHUTDOWN.wait(timeout=args.interval):
+                    break
+                continue
 
             broadcast({"type": "thinking"})
 
@@ -659,6 +768,7 @@ def main() -> None:
                     total_output_tokens += output_tokens
                     cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                     cost_str = f"{cost:.4f}"
+                    usage_tracker.record_api_call()
                     if _SHUTDOWN.wait(timeout=args.interval):
                         break
                     continue
@@ -674,17 +784,19 @@ def main() -> None:
                     total_output_tokens += output_tokens
                     cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                     cost_str = f"{cost:.4f}"
+                    usage_tracker.record_api_call()
                     if _SHUTDOWN.wait(timeout=args.interval):
                         break
                     continue
 
                 personality.mark_spoken()
 
-                # Track costs
+                # Track costs + record successful reaction
                 total_input_tokens += input_tokens
                 total_output_tokens += output_tokens
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                 cost_str = f"{cost:.4f}"
+                usage_tracker.record_reaction(input_tokens, output_tokens)
 
                 log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
                          cycle, mode.value, elapsed_ms, signal.label, signal.score, dialogue[:60])

@@ -193,3 +193,87 @@
   background: #dc2626;
   color: white;
 }
+
+/* API Key & License Key */
+.config-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid #2a2a4a;
+  background: #1a1a35;
+  color: #e0e0ff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.config-input:focus {
+  border-color: #6d28d9;
+}
+.config-input::placeholder {
+  color: #4a4a6a;
+}
+
+.api-key-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-toggle-vis,
+.btn-test-key {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid #2a2a4a;
+  background: #1a1a35;
+  color: #8888bb;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+.btn-toggle-vis:hover,
+.btn-test-key:hover {
+  border-color: #6d28d9;
+  background: #221f3d;
+}
+.btn-test-key:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.key-status {
+  margin-top: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.key-valid {
+  color: #22c55e;
+}
+.key-invalid {
+  color: #ef4444;
+}
+.status-icon {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.license-tier {
+  margin-top: 8px;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+.tier-free {
+  color: #6666aa;
+  background: #1a1a35;
+  border: 1px solid #2a2a4a;
+}
+.tier-premium {
+  color: #22c55e;
+  background: #0f2a1a;
+  border: 1px solid #22c55e44;
+}

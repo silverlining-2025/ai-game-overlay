@@ -14,6 +14,7 @@ async fn start_companion(
     interval: f64,
     chattiness: Option<f64>,
     locale: Option<String>,
+    api_key: Option<String>,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
@@ -58,6 +59,7 @@ async fn start_companion(
             "--save-training",
         ])
         .env("PYTHONIOENCODING", "utf-8")
+        .env("ANTHROPIC_API_KEY", &api_key.unwrap_or_default())
         .current_dir(&repo_root)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
@@ -175,6 +177,7 @@ async fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(BackendProcess(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             start_companion,

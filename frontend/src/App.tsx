@@ -3,6 +3,7 @@ import ConsentScreen from "./screens/ConsentScreen";
 import ConfigScreen from "./screens/ConfigScreen";
 import OverlayScreen from "./screens/OverlayScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Tutorial from "./components/Tutorial";
 import type { AppConfig } from "./types";
 import "./App.css";
 
@@ -11,6 +12,9 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [consented, setConsented] = useState(
     () => localStorage.getItem("privacy_consent") === "true"
+  );
+  const [tutorialDone, setTutorialDone] = useState(
+    () => localStorage.getItem("tutorial_completed") === "true"
   );
 
   useEffect(() => {
@@ -58,6 +62,10 @@ export default function App() {
 
   if (!consented) {
     return <ConsentScreen onConsent={() => setConsented(true)} />;
+  }
+
+  if (!tutorialDone) {
+    return <Tutorial onComplete={() => setTutorialDone(true)} />;
   }
 
   return <ConfigScreen onStart={handleStart} />;

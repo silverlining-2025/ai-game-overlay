@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AppConfig } from "../types";
 import { useTranslation } from "../i18n/useTranslation";
 import type { Locale } from "../i18n/index";
@@ -59,6 +59,74 @@ export default function ConfigScreen({ onStart }: Props) {
   const [position, setPosition] = useState<AppConfig["position"]>(() => loadSaved("position", "top-right"));
   const [chattiness, setChattiness] = useState(() => loadSaved("chattiness", 0.5));
 
+  // API key state
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState<"idle" | "testing" | "valid" | "invalid">("idle");
+  const [apiKeyError, setApiKeyError] = useState("");
+
+  // License key state
+  const [licenseKey, setLicenseKey] = useState("");
+  const [licenseActivated, setLicenseActivated] = useState(false);
+
+  // Load API key and license key from localStorage on mount
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem("anthropic_api_key");
+    if (savedApiKey) setApiKey(savedApiKey);
+    const savedLicense = localStorage.getItem("license_key");
+    if (savedLicense) {
+      setLicenseKey(savedLicense);
+      setLicenseActivated(true);
+    }
+  }, []);
+
+  // Save API key to localStorage whenever it changes
+  useEffect(() => {
+    if (apiKey) {
+      localStorage.setItem("anthropic_api_key", apiKey);
+    } else {
+      localStorage.removeItem("anthropic_api_key");
+    }
+  }, [apiKey]);
+
+  const handleTestApiKey = async () => {
+    if (!apiKey.trim()) return;
+    setApiKeyStatus("testing");
+    setApiKeyError("");
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1,
+          messages: [{ role: "user", content: "test" }],
+        }),
+      });
+      if (resp.ok) {
+        setApiKeyStatus("valid");
+      } else {
+        const body = await resp.json().catch(() => ({}));
+        setApiKeyStatus("invalid");
+        setApiKeyError(body?.error?.message || `HTTP ${resp.status}`);
+      }
+    } catch (err: any) {
+      setApiKeyStatus("invalid");
+      setApiKeyError(err?.message || "Network error");
+    }
+  };
+
+  const handleActivateLicense = () => {
+    if (!licenseKey.trim()) return;
+    localStorage.setItem("license_key", licenseKey);
+    setLicenseActivated(true);
+  };
+
   const handleLocaleChange = (newLocale: Locale) => {
     setLocaleState(newLocale);
     setLocale(newLocale);
@@ -85,6 +153,7 @@ export default function ConfigScreen({ onStart }: Props) {
         interval: 3.0,
         chattiness: config.chattiness,
         locale: config.locale,
+        apiKey: apiKey || undefined,
       });
     } catch {
       // Not in Tauri
@@ -112,6 +181,77 @@ export default function ConfigScreen({ onStart }: Props) {
             <option value="ko">한국어</option>
             <option value="en">English</option>
           </select>
+        </div>
+
+        {/* API Key */}
+        <div className="config-section">
+          <label className="config-label">{t("config.api_key_label")}</label>
+          <div className="api-key-row">
+            <input
+              type={showApiKey ? "text" : "password"}
+              className="config-input"
+              placeholder={t("config.api_key_placeholder")}
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setApiKeyStatus("idle");
+                setApiKeyError("");
+              }}
+            />
+            <button
+              type="button"
+              className="btn-toggle-vis"
+              onClick={() => setShowApiKey(!showApiKey)}
+            >
+              {showApiKey ? "Hide" : "Show"}
+            </button>
+            <button
+              type="button"
+              className="btn-test-key"
+              onClick={handleTestApiKey}
+              disabled={!apiKey.trim() || apiKeyStatus === "testing"}
+            >
+              {apiKeyStatus === "testing" ? "..." : t("config.test_key")}
+            </button>
+          </div>
+          {apiKeyStatus === "valid" && (
+            <div className="key-status key-valid">
+              <span className="status-icon">&#x2714;</span> {t("config.key_valid")}
+            </div>
+          )}
+          {apiKeyStatus === "invalid" && (
+            <div className="key-status key-invalid">
+              <span className="status-icon">&#x2718;</span> {t("config.key_invalid")}{apiKeyError ? `: ${apiKeyError}` : ""}
+            </div>
+          )}
+        </div>
+
+        {/* License Key */}
+        <div className="config-section">
+          <label className="config-label">{t("config.license_label")}</label>
+          <div className="api-key-row">
+            <input
+              type="text"
+              className="config-input"
+              placeholder={t("config.license_placeholder")}
+              value={licenseKey}
+              onChange={(e) => {
+                setLicenseKey(e.target.value);
+                if (licenseActivated) setLicenseActivated(false);
+              }}
+            />
+            <button
+              type="button"
+              className="btn-test-key"
+              onClick={handleActivateLicense}
+              disabled={!licenseKey.trim()}
+            >
+              {t("config.activate")}
+            </button>
+          </div>
+          <div className={`license-tier ${licenseActivated ? "tier-premium" : "tier-free"}`}>
+            {licenseActivated ? t("config.premium_tier") : t("config.free_tier")}
+          </div>
         </div>
 
         <div className="config-section">

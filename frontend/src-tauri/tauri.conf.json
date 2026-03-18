@@ -1,7 +1,7 @@
 {
   "productName": "AI Gaming Companion",
-  "version": "0.2.0",
-  "identifier": "com.ai-game-overlay.app",
+  "version": "0.3.0",
+  "identifier": "com.aigamingcompanion.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -29,13 +29,22 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["msi", "nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "shortDescription": "AI-powered gaming companion overlay",
+    "longDescription": "CV-based AI overlay for PC games. Captures screen via DXGI, processes with OpenCV and AI vision models, and displays real-time coaching insights through a transparent overlay. Anti-cheat safe — no memory reading, no injection, screen capture only.",
+    "_externalBin_comment": "Enable when PyInstaller backend exe is built: binaries/ai-game-overlay-backend"
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/silverlining-2025/ai-game-overlay/releases/latest/download/latest.json"],
+      "pubkey": ""
+    }
   }
 }
