@@ -19,6 +19,9 @@ frontend/src-tauri/Cargo.lock
 frontend/node_modules/
 frontend/dist/
 
+# Compiled JS from TypeScript (should not be committed)
+frontend/src/**/*.js
+
 # IDE
 .vscode/
 .idea/
