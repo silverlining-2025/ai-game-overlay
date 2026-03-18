@@ -210,6 +210,12 @@ def _format_time(seconds: float) -> str:
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
     parser = argparse.ArgumentParser(
         description="Auto-label game screenshots using CLIP zero-shot + optional Claude Vision."
     )
@@ -372,7 +378,7 @@ def main():
             label = entry["proposed_label"]
             label_dir = output_dir / label
             label_dir.mkdir(parents=True, exist_ok=True)
-            dest = label_dir / frame_path.name
+            dest = label_dir / f"{frame_path.parent.name}_{frame_path.name}"
             if not dest.exists():
                 shutil.copy2(frame_path, dest)
 

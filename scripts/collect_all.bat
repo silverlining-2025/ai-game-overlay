@@ -13,32 +13,24 @@ echo  AI Game Overlay - Training Data Pipeline
 echo ============================================================
 echo.
 
-REM Step 1: Download (if a download script exists)
-if exist "scripts\download.bat" (
-    echo [1/4] Downloading training data...
-    call scripts\download.bat
+REM Step 1: Download training videos (if youtube dir exists)
+if exist "training_data\palworld\youtube" (
+    echo [1/4] Downloading training videos...
+    %PYTHON% -m backend.tools.download_videos --output training_data/palworld/youtube
     if errorlevel 1 (
-        echo ERROR: Download failed.
-        pause
-        exit /b 1
+        echo WARNING: Download had errors, continuing...
     )
 ) else (
-    echo [1/4] Skipping download (no download.bat found)
-    echo       Place frames in training_data/palworld/frames/
+    echo [1/4] Skipping download (no training_data\palworld\youtube directory)
+    echo       Place videos in training_data/palworld/youtube/
 )
 echo.
 
-REM Step 2: Extract frames (if an extract script exists)
-if exist "scripts\extract.bat" (
-    echo [2/4] Extracting frames...
-    call scripts\extract.bat
-    if errorlevel 1 (
-        echo ERROR: Extraction failed.
-        pause
-        exit /b 1
-    )
-) else (
-    echo [2/4] Skipping extraction (no extract.bat found)
+REM Step 2: Extract frames from videos
+echo [2/4] Extracting frames...
+%PYTHON% -m backend.tools.extract_frames --input training_data/palworld/youtube --output training_data/palworld/frames
+if errorlevel 1 (
+    echo WARNING: Frame extraction had errors, continuing...
 )
 echo.
 

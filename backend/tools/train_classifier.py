@@ -46,7 +46,7 @@ IMAGE_SIZE = 224
 
 
 class GameScreenshotDataset(Dataset):
-    """Loads labeled screenshots from responses.jsonl files."""
+    """Loads labeled screenshots from responses.jsonl and results.jsonl files."""
 
     def __init__(self, data_dir: str, processor):
         self.samples: list[tuple[str, str]] = []  # (image_path, label)
@@ -60,6 +60,8 @@ class GameScreenshotDataset(Dataset):
 
         # Collect all labeled entries
         raw_samples: list[tuple[str, str]] = []
+
+        # --- Source 1: Manual labeling (responses.jsonl with "label" field) ---
         for session_dir in sorted(data_path.iterdir()):
             if not session_dir.is_dir():
                 continue
@@ -78,10 +80,55 @@ class GameScreenshotDataset(Dataset):
                 if image_path.exists():
                     raw_samples.append((str(image_path), label))
 
+        # --- Source 2: Auto-labeling (results.jsonl with verified/proposed/clip label) ---
+        for session_dir in sorted(data_path.iterdir()):
+            if not session_dir.is_dir():
+                continue
+            jsonl_path = session_dir / "results.jsonl"
+            if not jsonl_path.exists():
+                continue
+            for line in jsonl_path.read_text(encoding="utf-8").strip().split("\n"):
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                # Use verified_label first, fall back to proposed_label, then clip_label
+                label = (
+                    entry.get("verified_label")
+                    or entry.get("proposed_label")
+                    or entry.get("clip_label")
+                )
+                if not label:
+                    continue
+                image_name = entry.get("image", "")
+                # Try multiple path resolutions
+                candidates = [
+                    session_dir / image_name,           # relative to JSONL dir
+                    data_path / image_name,              # relative to data root
+                ]
+                # Check if image was copied to a label subdirectory in auto_labeled/
+                if label:
+                    label_subdir = session_dir / label / Path(image_name).name
+                    candidates.append(label_subdir)
+
+                resolved_path = None
+                for candidate in candidates:
+                    if candidate.exists():
+                        resolved_path = candidate
+                        break
+
+                if resolved_path is not None:
+                    raw_samples.append((str(resolved_path), label))
+                else:
+                    log.warning(
+                        "Image not found for auto-label entry, tried: %s",
+                        [str(c) for c in candidates],
+                    )
+
         if not raw_samples:
             raise ValueError(
                 f"No labeled samples found in {data_dir}. "
-                "Entries need a 'label' field in responses.jsonl."
+                "Entries need a 'label' field in responses.jsonl "
+                "or a 'verified_label'/'proposed_label' in results.jsonl."
             )
 
         # Filter classes with too few samples

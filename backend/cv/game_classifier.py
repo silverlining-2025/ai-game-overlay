@@ -37,7 +37,7 @@ CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 MODEL_DIR = Path(__file__).parent.parent / "models" / "game_classifier"
 
 # Zero-shot label descriptions — used when no trained model exists.
-# Must match the 25-label Palworld taxonomy in backend/tools/labeler.py.
+# Must match the 26-label Palworld taxonomy in backend/tools/labeler.py.
 ZERO_SHOT_LABELS = {
     # Combat (3)
     "combat": "a screenshot of combat with enemies showing HP bars and damage numbers",

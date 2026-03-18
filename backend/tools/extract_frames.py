@@ -198,7 +198,7 @@ def process_state(
     final_paths: list[Path] = []
     for idx, fp in enumerate(unique, 1):
         final_name = state_output / f"frame_{idx:05d}.jpg"
-        fp.rename(final_name)
+        shutil.move(str(fp), str(final_name))
         final_paths.append(final_name)
 
     # Remove non-unique temp files
