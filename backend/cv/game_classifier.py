@@ -36,24 +36,41 @@ log = logging.getLogger(__name__)
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 MODEL_DIR = Path(__file__).parent.parent / "models" / "game_classifier"
 
-# Zero-shot label descriptions — used when no trained model exists
+# Zero-shot label descriptions — used when no trained model exists.
+# Must match the 25-label Palworld taxonomy in backend/tools/labeler.py.
 ZERO_SHOT_LABELS = {
-    "combat_wild": "a screenshot of combat with wild monsters in an open world game",
-    "exploration": "a screenshot of exploring outdoor areas in a game",
-    "base_idle": "a screenshot of an idle base or camp in a game",
-    "base_building": "a screenshot of building or placing structures in a base",
-    "inventory_menu": "a screenshot of an inventory or item management menu",
-    "map_screen": "a screenshot of a world map or minimap overlay",
-    "loading_screen": "a screenshot of a loading screen with progress bar or tips",
-    "pal_management": "a screenshot of managing creatures or companions",
-    "char_creation": "a screenshot of character creation or customization",
-    "world_select": "a screenshot of a world or save file selection menu",
-    "cutscene": "a screenshot of an in-game cutscene or cinematic",
-    "flying": "a screenshot of flying or riding a mount in the air",
-    "workbench_craft": "a screenshot of a crafting workbench or crafting menu",
-    "steam_launcher": "a screenshot of the Steam game launcher or library",
-    "patch_notes": "a screenshot showing game patch notes or update information",
-    "settings_option": "a screenshot of a settings or options menu",
+    # Combat (3)
+    "combat": "a screenshot of combat with enemies showing HP bars and damage numbers",
+    "capturing": "a screenshot of throwing a pal sphere to capture a creature, sphere flying or shaking",
+    "boss_fight": "a screenshot of a boss fight with a large HP bar at the top of the screen and a timer",
+    # Exploration (5)
+    "exploring": "a screenshot of third-person exploration and movement with no combat",
+    "mounted_ground": "a screenshot of riding a ground mount creature in a game",
+    "mounted_flying": "a screenshot of flying on a mount high in the sky with an aerial viewpoint",
+    "gathering": "a screenshot of gathering resources by hitting trees or rocks with item drops visible",
+    "dungeon": "a screenshot inside a dark dungeon cave or ruins environment",
+    # Base (3)
+    "building": "a screenshot of building mode with translucent structure placement preview",
+    "base_view": "a screenshot of a base or camp overview with creatures working",
+    "crafting_menu": "a screenshot of a crafting UI with recipe list and craft button",
+    # Menu/UI (7)
+    "inventory": "a screenshot of an inventory screen with item grid and equipment slots",
+    "pal_management": "a screenshot of creature management UI showing stats, party, or pal box",
+    "technology_tree": "a screenshot of a technology or skill tree with unlockable nodes",
+    "map_screen": "a screenshot of a top-down world map with fast travel points",
+    "merchant_shop": "a screenshot of a merchant shop UI with buy and sell prices",
+    "breeding_condenser": "a screenshot of a breeding or condenser UI with male and female slots and star ratings",
+    "settings_menu": "a screenshot of a settings or options menu with tabs and sliders",
+    # Game Flow (7)
+    "loading_screen": "a screenshot of a loading screen with progress bar and tip text",
+    "death_respawn": "a screenshot of a death or respawn screen with a darkened overlay",
+    "cutscene_notification": "a screenshot of a notification popup such as level up, raid warning, or achievement",
+    "dialogue_interaction": "a screenshot of an NPC dialogue window or quest interaction",
+    "character_creation": "a screenshot of character creation with appearance customization sliders",
+    "world_select": "a screenshot of a world or save file selection screen",
+    "title_screen": "a screenshot of the game title screen or main menu",
+    # Meta (1)
+    "external_app": "a screenshot of an external application like Steam launcher or patch notes",
 }
 
 

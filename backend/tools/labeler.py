@@ -2,7 +2,7 @@
 
 Scans ALL subdirectories under a training data directory, aggregates
 unlabeled images, and presents them for labeling with a two-step
-keyboard flow: group (1-6) then sub-label (Q/W/E/R/T).
+keyboard flow: group (1-6) then sub-label (Q/W/E/R/T/Y/U).
 
 Labels match ZERO_SHOT_LABELS in backend/cv/game_classifier.py exactly,
 so labeled data flows directly into the training pipeline.
@@ -41,10 +41,9 @@ GROUPS = [
         "color": "#cc3333",
         "color_hover": "#ee4444",
         "labels": [
-            ("q", "combat_wild", "#ff4444"),
-            ("w", "combat_boss", "#dd2222"),
-            ("e", "capture_attempt", "#ff8844"),
-            ("r", "capture_success", "#44cc44"),
+            ("q", "combat", "#ff4444", "일반 전투 (적 HP바 보임, 데미지 숫자)"),
+            ("w", "capturing", "#ff8844", "포획 시도 (팰스피어 날아감/흔들림)"),
+            ("e", "boss_fight", "#dd2222", "보스전 (상단 큰 HP바 + 타이머)"),
         ],
     },
     {
@@ -53,10 +52,11 @@ GROUPS = [
         "color": "#339933",
         "color_hover": "#44bb44",
         "labels": [
-            ("q", "exploration", "#44aa44"),
-            ("w", "riding_mount", "#66cc66"),
-            ("e", "flying", "#22cccc"),
-            ("r", "gathering", "#88aa44"),
+            ("q", "exploring", "#44aa44", "탐험/이동 (3인칭, 전투 없음)"),
+            ("w", "mounted_ground", "#66cc66", "지상 탈것 (팰 위에 탄 모습)"),
+            ("e", "mounted_flying", "#22cccc", "비행 (높은 시점, 하늘)"),
+            ("r", "gathering", "#88aa44", "채집 (나무/바위 치기, 아이템 드롭)"),
+            ("t", "dungeon", "#668844", "던전 내부 (어두운 동굴/유적)"),
         ],
     },
     {
@@ -65,10 +65,9 @@ GROUPS = [
         "color": "#aa8833",
         "color_hover": "#ccaa44",
         "labels": [
-            ("q", "base_building", "#aaaa44"),
-            ("w", "workbench_craft", "#cc8844"),
-            ("e", "base_idle", "#888888"),
-            ("r", "base_raid", "#cc4444"),
+            ("q", "building", "#aaaa44", "건설 모드 (반투명 프리뷰)"),
+            ("w", "base_view", "#888844", "거점 풍경 (팰들 일하는 모습)"),
+            ("e", "crafting_menu", "#cc8844", "제작 UI (레시피 목록, Craft 버튼)"),
         ],
     },
     {
@@ -77,11 +76,13 @@ GROUPS = [
         "color": "#5555aa",
         "color_hover": "#6666cc",
         "labels": [
-            ("q", "inventory_menu", "#6666cc"),
-            ("w", "pal_management", "#aa44aa"),
-            ("e", "map_screen", "#4488cc"),
-            ("r", "settings_option", "#999999"),
-            ("t", "stat_levelup", "#cccc44"),
+            ("q", "inventory", "#6666cc", "인벤토리 (아이템 그리드, 장비)"),
+            ("w", "pal_management", "#aa44aa", "팰 관리 (팰박스, 스탯, 파티)"),
+            ("e", "technology_tree", "#4488cc", "기술 트리 (언락 노드 목록)"),
+            ("r", "map_screen", "#44aacc", "맵 (탑다운 지도, 패스트트래블)"),
+            ("t", "merchant_shop", "#cc8844", "상점 (구매/판매, 가격)"),
+            ("y", "breeding_condenser", "#cc44aa", "교배/농축 (암수 슬롯, 별 등급)"),
+            ("u", "settings_menu", "#999999", "설정 (옵션 탭, 슬라이더)"),
         ],
     },
     {
@@ -90,32 +91,35 @@ GROUPS = [
         "color": "#6655aa",
         "color_hover": "#8877cc",
         "labels": [
-            ("q", "loading_screen", "#666666"),
-            ("w", "world_select", "#8888ff"),
-            ("e", "char_creation", "#cc88cc"),
-            ("r", "cutscene", "#4466cc"),
-            ("t", "death_screen", "#aa2222"),
+            ("q", "loading_screen", "#666666", "로딩 (진행바, 팁 텍스트)"),
+            ("w", "death_respawn", "#aa2222", "사망 (어두운 화면, 리스폰)"),
+            ("e", "cutscene_notification", "#4466cc", "알림 (레벨업, 습격경고, 업적)"),
+            ("r", "dialogue_interaction", "#cc88cc", "대화 (NPC 대화창, 퀘스트)"),
+            ("t", "character_creation", "#aa88cc", "캐릭터 생성 (외형 슬라이더)"),
+            ("y", "world_select", "#8888ff", "월드 선택 (세이브 목록)"),
+            ("u", "title_screen", "#6666aa", "타이틀 (메인 메뉴)"),
         ],
     },
     {
         "key": "6",
-        "name": "External",
+        "name": "Meta",
         "color": "#445566",
         "color_hover": "#556677",
         "labels": [
-            ("q", "steam_launcher", "#334466"),
-            ("w", "patch_notes", "#555577"),
+            ("q", "external_app", "#888888", "외부 앱 (스팀, 패치노트 등)"),
         ],
     },
 ]
 
-# Build a flat lookup: label_name -> group color for history chips
+# Build flat lookups: label_name -> group color, group name, description
 _LABEL_COLOR_MAP: dict[str, str] = {}
 _LABEL_GROUP_MAP: dict[str, str] = {}
+_LABEL_DESC_MAP: dict[str, str] = {}
 for _g in GROUPS:
-    for _, _lname, _lcol in _g["labels"]:
+    for _, _lname, _lcol, _ldesc in _g["labels"]:
         _LABEL_COLOR_MAP[_lname] = _lcol
         _LABEL_GROUP_MAP[_lname] = _g["name"]
+        _LABEL_DESC_MAP[_lname] = _ldesc
 _LABEL_COLOR_MAP["uncertain"] = "#aa6600"
 _LABEL_GROUP_MAP["uncertain"] = "?"
 
@@ -301,7 +305,7 @@ class LabelerApp:
             self.group_buttons.append(btn)
 
         # ---- Sub-label buttons (row 2) ----
-        self.sub_frame = tk.Frame(self.root, bg=BG_BUTTON_ROW, height=46)
+        self.sub_frame = tk.Frame(self.root, bg=BG_BUTTON_ROW, height=62)
         self.sub_frame.pack(fill="x", padx=8, pady=(0, 2))
         self.sub_frame.pack_propagate(False)
 
@@ -432,21 +436,34 @@ class LabelerApp:
             widget.destroy()
         self.sub_buttons.clear()
 
-        for key, label_name, color in group["labels"]:
+        for key, label_name, color, desc in group["labels"]:
+            btn_frame = tk.Frame(self.sub_frame, bg=color, cursor="hand2")
+            btn_frame.pack(side="left", padx=4, pady=4, fill="x", expand=True)
+
             btn = tk.Button(
-                self.sub_frame,
+                btn_frame,
                 text=f"[{key.upper()}] {label_name}",
                 font=FONT_LABEL, fg="white", bg=color,
                 activebackground=color, activeforeground="white",
-                relief="flat", bd=0, padx=14, pady=4, cursor="hand2",
+                relief="flat", bd=0, padx=8, pady=1, cursor="hand2",
                 command=lambda n=label_name: self._apply_label(n),
             )
-            btn.pack(side="left", padx=4, pady=6, fill="x", expand=True)
+            btn.pack(side="top", fill="x")
+
+            tip = tk.Label(
+                btn_frame, text=desc,
+                font=("Malgun Gothic", 7), fg="#dddddd", bg=color,
+                anchor="center",
+            )
+            tip.pack(side="top", fill="x")
+            # Click on the tip label also applies the label
+            tip.bind("<Button-1>", lambda e, n=label_name: self._apply_label(n))
+
             self.sub_buttons.append(btn)
 
         # Rebind sub-label keys
         self._unbind_sub_keys()
-        for key, label_name, _ in group["labels"]:
+        for key, label_name, _, _ in group["labels"]:
             self.root.bind(
                 key,
                 lambda e, n=label_name: self._apply_label(n),
@@ -454,7 +471,7 @@ class LabelerApp:
 
     def _unbind_sub_keys(self):
         """Unbind all possible sub-label keys."""
-        for key in ("q", "w", "e", "r", "t"):
+        for key in ("q", "w", "e", "r", "t", "y", "u"):
             self.root.unbind(key)
 
     # ----- Label application -----
