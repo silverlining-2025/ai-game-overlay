@@ -38,7 +38,7 @@
       "icons/icon.ico"
     ],
     "shortDescription": "AI-powered gaming companion overlay",
-    "longDescription": "CV-based AI overlay for PC games. Captures screen via DXGI, processes with OpenCV and AI vision models, and displays real-time coaching insights through a transparent overlay. Anti-cheat safe — no memory reading, no injection, screen capture only.",
+    "longDescription": "CV-based AI overlay for PC games. Captures screen via DXGI, processes with OpenCV and AI vision models, and displays real-time coaching insights through a transparent overlay. Anti-cheat safe — no memory reading, no injection, screen capture only."
   },
   "plugins": {
     "updater": {
