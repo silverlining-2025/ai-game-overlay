@@ -17,7 +17,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
+import warnings
+
+# Suppress noisy warnings from torch/transformers
+warnings.filterwarnings("ignore", message=".*torchao.*")
+warnings.filterwarnings("ignore", message=".*use_fast.*")
+warnings.filterwarnings("ignore", message=".*cpp extensions.*")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 from pathlib import Path
 from typing import Optional
 
