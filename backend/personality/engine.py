@@ -89,6 +89,7 @@ class PersonalityState:
     last_event_time: float = 0.0
     speak_count: int = 0
     consecutive_silences: int = 0
+    confidence: float = 0.5
     emotions: EmotionalState = field(default_factory=EmotionalState)
 
 
@@ -152,6 +153,16 @@ class PersonalityEngine:
         # Boost emotions based on event + brightness
         self._apply_event_boost(event_score, event_label)
         self._apply_brightness_mood(cv_context)
+
+        # Compute confidence from event clarity
+        if event_score >= 0.7:
+            self.state.confidence = 0.9
+        elif event_score >= 0.4:
+            self.state.confidence = 0.6
+        elif event_score > 0.1:
+            self.state.confidence = 0.4
+        else:
+            self.state.confidence = 0.3
 
         # Track event timing and combat state
         if event_score > 0.3:
@@ -217,6 +228,7 @@ class PersonalityEngine:
                 "max_tokens": 50,
                 "temperature": 0.8,
                 "delay_sec": random.uniform(0, 0.3),
+                "confidence": self.state.confidence,
                 "prompt_hint": f"지금 화면에서 변한 것에만 반응. 감탄사 위주! 1문장! 설명 금지! (기분: {mood})",
             }
 
@@ -229,6 +241,7 @@ class PersonalityEngine:
                 "max_tokens": 120,
                 "temperature": 0.6,
                 "delay_sec": random.uniform(0.3, 1.0),
+                "confidence": self.state.confidence,
                 "prompt_hint": f"메뉴/UI가 열렸다. 간단히 반응. 1문장. (기분: {mood})",
             }
 
@@ -248,6 +261,7 @@ class PersonalityEngine:
                 "max_tokens": 120,
                 "temperature": 0.6 + intensity * 0.3,
                 "delay_sec": delay,
+                "confidence": self.state.confidence,
                 "prompt_hint": f"이전 화면과 뭐가 달라졌는지 파악하고 그것에만 반응. 안 변한 건 무시. 1-2문장. (기분: {mood})",
             }
 
@@ -288,6 +302,7 @@ class PersonalityEngine:
                     "max_tokens": 80,
                     "temperature": 0.9,
                     "delay_sec": random.uniform(2.0, 6.0),
+                    "confidence": self.state.confidence,
                     "prompt_hint": (
                         f"화면 묘사 금지. 이 방향으로 한마디만: {direction}"
                     ),
@@ -386,8 +401,30 @@ class PersonalityEngine:
         self.state.last_speak_time = time.time()
         self._scene_comment_count += 1
 
-    def get_emotion_context(self) -> str:
-        """Return natural-language emotional context for the prompt."""
+    def get_mood_coloring(self, locale: str = "ko") -> str:
+        """Return natural tonal instructions based on emotional state."""
+        e = self.state.emotions
+        parts = []
+
+        if locale == "ko":
+            if e.excitement > 0.6: parts.append("에너지 최고조! 감탄사 많이, 문장 짧게")
+            elif e.excitement > 0.3: parts.append("기분 좋음, 살짝 들뜸")
+            if e.tension > 0.6: parts.append("매우 긴장, 말 더듬을 수 있음")
+            elif e.tension > 0.3: parts.append("약간 불안, 조심스러운 어조")
+            if e.amusement > 0.3: parts.append("웃기는 상황, 가벼운 톤")
+            if e.concern > 0.3: parts.append("걱정됨, 부드러운 톤")
+            return " / ".join(parts) if parts else "편안하고 여유로운 톤"
+        else:
+            if e.excitement > 0.6: parts.append("Peak energy! Exclamations, short sentences")
+            elif e.excitement > 0.3: parts.append("Good mood, slightly hyped")
+            if e.tension > 0.6: parts.append("Very tense, might stutter or rush")
+            elif e.tension > 0.3: parts.append("Slightly anxious, cautious tone")
+            if e.amusement > 0.3: parts.append("Funny situation, light tone")
+            if e.concern > 0.3: parts.append("Worried, softer tone")
+            return " / ".join(parts) if parts else "Relaxed, easygoing tone"
+
+    def _get_emotion_labels(self) -> str:
+        """Return emotion labels for debug info (e.g. '흥분, 긴장')."""
         e = self.state.emotions
         parts = []
         if e.excitement > 0.6:
@@ -405,3 +442,23 @@ class PersonalityEngine:
         if not parts:
             return "평온"
         return ", ".join(parts)
+
+    def should_disagree(self, session_state: dict | None = None) -> str | None:
+        """Check if the companion should express disagreement. Returns topic or None."""
+        if not session_state:
+            return None
+
+        # Disagreement conditions
+        recent_events = session_state.get("recent_events", [])
+        activity = session_state.get("activity", "")
+
+        # Died multiple times recently
+        death_count = sum(1 for e in recent_events if "죽" in e.get("text", "") or "death" in e.get("text", "").lower())
+        if death_count >= 2:
+            return "repeated_death"
+
+        # High tension for too long (risky play)
+        if self.state.emotions.tension > 0.7 and activity == "combat":
+            return "risky_play"
+
+        return None

@@ -14,6 +14,7 @@ Integration (handled by the overlay agent, not here):
 from __future__ import annotations
 
 import json
+import random
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -117,18 +118,26 @@ class CompanionMemory:
     # Moment tracking
     # ------------------------------------------------------------------
 
-    def add_moment(self, text: str, moment_type: str = "notable") -> None:
+    def add_moment(
+        self,
+        text: str,
+        moment_type: str = "notable",
+        emotional_weight: float = 1.0,
+    ) -> None:
         """Record a notable moment (max 20, oldest evicted first).
 
         Args:
             text: Description of what happened (Korean OK).
             moment_type: Category — e.g. "funny", "achievement", "fail",
                          "epic", "notable".
+            emotional_weight: How emotionally significant this moment is
+                              (0.0 = trivial, 1.0 = normal, 2.0+ = very impactful).
         """
         moment = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "text": text,
             "type": moment_type,
+            "emotional_weight": emotional_weight,
         }
         self._data["moments"].append(moment)
         # FIFO eviction: keep only the most recent entries
@@ -151,15 +160,117 @@ class CompanionMemory:
         self._data["last_session"]["summary"] = summary
 
     # ------------------------------------------------------------------
+    # Fuzzy recall — imperfect human-like memory callbacks
+    # ------------------------------------------------------------------
+
+    def get_fuzzy_callback(
+        self, current_context: str, locale: str = "ko"
+    ) -> str | None:
+        """Find a relevant past moment and return it as fuzzy recall.
+
+        Searches stored moments for keyword overlap with the current context.
+        If a match is found, returns a "fuzzified" recall string that sounds
+        like imperfect human memory — hedged, partial, or vague.
+
+        Args:
+            current_context: Current situation text (location, activity, event).
+            locale: Language for the recall string ("ko" or "en").
+
+        Returns:
+            A prompt injection string, or None if no relevant match.
+        """
+        if not self.moments:
+            return None
+
+        # Simple keyword matching
+        context_words = set(current_context.lower().split())
+        best_match = None
+        best_score = 0
+
+        for moment in self.moments:
+            moment_words = set(moment["text"].lower().split())
+            overlap = len(context_words & moment_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_match = moment
+
+        if best_match and best_score >= 1:
+            if locale == "ko":
+                return self._fuzzify(best_match)
+            return self._fuzzify_en(best_match)
+
+        # 10% chance to reference a random moment even without context match
+        if random.random() < 0.1 and self.moments:
+            chosen = random.choice(self.moments)
+            if locale == "ko":
+                return self._fuzzify(chosen)
+            return self._fuzzify_en(chosen)
+
+        return None
+
+    def _fuzzify(self, moment: dict) -> str:
+        """Make a memory reference feel fuzzy and human, not database-accurate."""
+        text = moment["text"]
+        roll = random.random()
+
+        if roll < 0.7:
+            # Accurate but hedged
+            templates = [
+                f"전에 {text}... 맞지?",
+                f"이거 전에도... {text} 비슷한 거 있었는데",
+                f"어디서 봤는데... {text}... 맞나?",
+            ]
+        elif roll < 0.9:
+            # Partial recall
+            templates = [
+                "전에 뭔가... 이 비슷한 게 있었는데, 기억이 가물가물",
+                f"이거 어제였나... 그제였나... 하여튼 전에 {text[:15]}...",
+                "확실하진 않은데, 예전에 이 비슷한 데서...",
+            ]
+        else:
+            # Vague connection
+            templates = [
+                "전에도 이런 적 있었는데... 뭐였더라",
+                "어디서 본 것 같은데, 기억이 안 나네",
+            ]
+
+        return random.choice(templates)
+
+    def _fuzzify_en(self, moment: dict) -> str:
+        """English version of fuzzy recall."""
+        text = moment["text"]
+        roll = random.random()
+
+        if roll < 0.7:
+            templates = [
+                f"Didn't something like {text}... happen before?",
+                f"This reminds me of... {text}... I think?",
+                f"Wait, wasn't there a time when {text}...?",
+            ]
+        elif roll < 0.9:
+            templates = [
+                "Something like this happened before... can't quite remember",
+                f"Was it yesterday or... anyway, {text[:15]}...",
+            ]
+        else:
+            templates = [
+                "This feels familiar... what was it",
+                "I've seen something like this before... or have I?",
+            ]
+
+        return random.choice(templates)
+
+    # ------------------------------------------------------------------
     # Prompt injection
     # ------------------------------------------------------------------
 
     def get_context_for_prompt(self) -> str:
-        """Return a compact string suitable for injection into the system prompt.
+        """Return a narrative string suitable for injection into the system prompt.
 
+        Produces natural, conversational text rather than structured lists.
         Example output (Korean):
-            이 플레이어와 5번째 세션. 이전에: 사막 보스 클리어.
-            기억할 것: 보스전에서 3번 죽음 (funny), 첫 레전더리 포획 (achievement)
+            이 플레이어와 5번째 세션이야. 저번에 사막 보스 클리어 했었지.
+            예전에 보스전에서 꽤 힘들어했던 거 기억나. 그리고 레어 포획 성공했을 때 진짜 좋아했잖아.
         """
         sessions = self._data["relationship"]["sessions_together"]
         prev_summary = self._data["last_session"].get("summary", "")
@@ -167,29 +278,55 @@ class CompanionMemory:
 
         parts: list[str] = []
 
-        # Session count + previous summary
-        session_line = f"이 플레이어와 {sessions}번째 세션."
+        # Session count + previous summary (narrative style)
+        session_line = f"이 플레이어와 {sessions}번째 세션이야."
         if prev_summary:
-            session_line += f" 이전에: {prev_summary}"
+            session_line += f" 저번에 {prev_summary}"
         parts.append(session_line)
 
         # Player info (if known)
         player = self._data["player"]
         player_bits: list[str] = []
         if player.get("name"):
-            player_bits.append(f"이름: {player['name']}")
+            player_bits.append(f"이름은 {player['name']}")
         if player.get("level_range"):
-            player_bits.append(f"레벨대: {player['level_range']}")
+            player_bits.append(f"레벨대는 {player['level_range']}")
         if player.get("play_style"):
-            player_bits.append(f"플레이 스타일: {player['play_style']}")
+            player_bits.append(f"{player['play_style']} 스타일")
         if player_bits:
-            parts.append("플레이어 정보: " + ", ".join(player_bits))
+            parts.append("플레이어 정보: " + ", ".join(player_bits) + ".")
 
-        # Notable moments (most recent 5 for prompt brevity)
+        # Notable moments — narrative form instead of list
         if moments:
             recent = moments[-5:]
-            moment_strs = [f"{m['text']} ({m['type']})" for m in recent]
-            parts.append("기억할 것: " + ", ".join(moment_strs))
+            narrative_pieces: list[str] = []
+            for m in recent:
+                weight = m.get("emotional_weight", 1.0)
+                mtype = m.get("type", "notable")
+                text = m["text"]
+
+                if mtype in ("fail", "funny"):
+                    if weight >= 1.5:
+                        narrative_pieces.append(f"{text} 때 진짜 힘들었잖아")
+                    else:
+                        narrative_pieces.append(f"{text} 했던 거 기억나")
+                elif mtype in ("achievement", "epic"):
+                    if weight >= 1.5:
+                        narrative_pieces.append(
+                            f"{text} 성공했을 때 진짜 좋아했잖아"
+                        )
+                    else:
+                        narrative_pieces.append(f"{text} 해냈던 거 기억나")
+                else:
+                    narrative_pieces.append(f"{text} 있었잖아")
+
+            if narrative_pieces:
+                # Join with natural connectors
+                if len(narrative_pieces) == 1:
+                    parts.append(f"예전에 {narrative_pieces[0]}.")
+                else:
+                    joined = ". 그리고 ".join(narrative_pieces)
+                    parts.append(f"예전에 {joined}.")
 
         return "\n".join(parts)
 

@@ -506,8 +506,11 @@ def main() -> None:
             clients.remove(q)
 
     def ai_loop():
+        import random
+
         from backend.cv.event_detector import EventDetector
         from backend.personality.engine import PersonalityEngine, ResponseMode
+        from backend.personality.behavior_tracker import BehaviorTracker
 
         cap = create_capture()
         for _ in range(10):
@@ -544,6 +547,9 @@ def main() -> None:
         # Layered architecture
         detector = EventDetector(game=args.game)
         personality = PersonalityEngine()
+
+        # Behavior tracker for unprompted observations
+        tracker = BehaviorTracker()
 
         # Apply chattiness setting (0.0=quiet, 0.5=normal, 1.0=chatty)
         chattiness = max(0.0, min(1.0, args.chattiness))
@@ -637,6 +643,21 @@ def main() -> None:
                 "clip_confidence": clip_confidence,
             }
             mode, config = personality.decide(signal.score, signal.label, cv_context)
+
+            # Update behavior tracker every cycle
+            tracker.update(session_state, signal.label, personality.state.emotions.tension)
+
+            # Periodic observation check — every 30 cycles (~15s), override SILENT
+            if cycle % 30 == 0 and mode == ResponseMode.SILENT:
+                obs_prompt = tracker.get_observation_prompt(locale=args.locale)
+                if obs_prompt and random.random() < 0.3:  # 30% chance when available
+                    mode = ResponseMode.REACT
+                    config = {
+                        "max_tokens": 100,
+                        "temperature": 0.85,
+                        "delay_sec": random.uniform(1.0, 3.0),
+                        "prompt_hint": obs_prompt,
+                    }
 
             if mode == ResponseMode.SILENT:
                 # Stay quiet — check again after short interval
@@ -744,9 +765,33 @@ def main() -> None:
                 else:
                     prompt_text += "화면 보고 캐릭터답게 반응."
 
-                excitement = personality.get_emotion_context()
-                if excitement != "평온":
-                    prompt_text += f"\n(기분: {excitement})"
+                # Mood coloring — natural tonal instructions from emotional state
+                mood_coloring = personality.get_mood_coloring(locale=args.locale) if hasattr(personality, 'get_mood_coloring') else personality.get_emotion_context()
+                prompt_text += f"\n(톤: {mood_coloring})"
+
+                # Confidence — low confidence allows uncertainty
+                confidence = config.get("confidence", 0.5)
+                if confidence < 0.4:
+                    if args.locale == "en":
+                        prompt_text += "\n(Low confidence — okay to express uncertainty or change your mind mid-sentence)"
+                    else:
+                        prompt_text += "\n(확신 낮음 — 말 중간에 자기 의견 바꿔도 됨)"
+
+                # Disagreement — occasionally push back on player patterns
+                disagree_topic = personality.should_disagree(session_state) if hasattr(personality, 'should_disagree') else None
+                if disagree_topic and random.random() < 0.25:  # 25% chance when trigger fires
+                    if args.locale == "en":
+                        prompt_text += f"\n[Disagree] The player keeps {disagree_topic}. Express your disagreement in character."
+                    else:
+                        prompt_text += f"\n[의견 불일치] 플레이어가 {disagree_topic}. 캐릭터답게 동의하지 않는 의견 표현해."
+
+                # Fuzzy memory callback — cross-session deja vu
+                fuzzy = memory.get_fuzzy_callback(
+                    f"{session_state.get('location', '')} {session_state.get('activity', '')}",
+                    locale=args.locale
+                ) if hasattr(memory, 'get_fuzzy_callback') else None
+                if fuzzy:
+                    prompt_text += f"\n[어렴풋한 기억] {fuzzy}\n이 기억이 자연스럽게 떠올랐으면 넌지시 언급해.\n"
 
                 user_content.append({"type": "text", "text": prompt_text})
 
