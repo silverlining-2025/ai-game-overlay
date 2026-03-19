@@ -172,83 +172,13 @@ REACTION_RULES_EN = (
     "This line is hidden from the user, so always include it.\n"
 )
 
-def _load_characters_from_yaml(locale: str = "ko") -> dict[str, str]:
-    """Load character prompts from YAML config file.
-
-    If locale is 'en', uses personality_en / speech_style_en fields when
-    available, falling back to the Korean fields if the English variants
-    don't exist in the YAML.
-    """
-    import yaml
-    yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
-    if not yaml_path.exists():
-        return {}
-    with open(yaml_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    prompts = {}
-    for char_id, char_data in data.items():
-        if not isinstance(char_data, dict):
-            continue  # skip non-character entries (e.g. reaction_rules_en)
-        name = char_data.get("name", char_id)
-        desc = char_data.get("description", "")
-        if locale == "en":
-            personality = char_data.get("personality_en") or char_data.get("personality", "")
-            speech = char_data.get("speech_style_en") or char_data.get("speech_style", "")
-            prompts[char_id] = f"You are '{name}'. {desc}\n\n{personality}\n{speech}"
-        else:
-            personality = char_data.get("personality", "")
-            speech = char_data.get("speech_style", "")
-            prompts[char_id] = f"넌 '{name}'야. {desc}\n\n{personality}\n{speech}"
-    return prompts
-
-
-def _load_character_templates() -> dict[str, dict]:
-    """Load per-character template responses from YAML."""
-    import yaml
-    yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
-    if not yaml_path.exists():
-        return {}
-    with open(yaml_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    templates = {}
-    for char_id, char_data in data.items():
-        if not isinstance(char_data, dict):
-            continue
-        char_templates = char_data.get("templates", {})
-        if char_templates:
-            templates[char_id] = char_templates
-    return templates
-
-
-def _load_character_tts_config() -> dict[str, dict]:
-    """Load per-character TTS config from YAML."""
-    import yaml
-    yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
-    if not yaml_path.exists():
-        return {}
-    with open(yaml_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    tts_configs = {}
-    for char_id, char_data in data.items():
-        if not isinstance(char_data, dict):
-            continue
-        tts = char_data.get("tts", {})
-        if tts:
-            tts_configs[char_id] = tts
-    return tts_configs
-
-
-def _load_game_context(game: str, locale: str = "ko") -> str:
-    """Load game context from YAML file. Returns empty string if not found."""
-    import yaml
-    game_path = _REPO_ROOT / "backend" / "data" / "games" / f"{game}.yaml"
-    if not game_path.exists():
-        return ""
-    with open(game_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    if locale == "en":
-        return data.get("context_en", data.get("context_ko", ""))
-    return data.get("context_ko", "")
+# Data loading — delegated to shared loader (avoids circular imports with tts)
+from backend.data.loader import (
+    load_characters_prompts as _load_characters_from_yaml,
+    load_character_templates as _load_character_templates,
+    load_character_tts_config as _load_character_tts_config,
+    load_game_context as _load_game_context,
+)
 
 
 DEFAULT_CHARACTER = "nozomi"

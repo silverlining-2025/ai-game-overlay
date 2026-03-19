@@ -324,8 +324,8 @@ def _get_character_templates() -> dict[str, dict]:
     """Lazy-load per-character templates from YAML."""
     global _CHARACTER_TEMPLATES
     if _CHARACTER_TEMPLATES is None:
-        from backend.tools.live_overlay import _load_character_templates
-        _CHARACTER_TEMPLATES = _load_character_templates()
+        from backend.data.loader import load_character_templates
+        _CHARACTER_TEMPLATES = load_character_templates()
     return _CHARACTER_TEMPLATES
 
 

@@ -24,8 +24,8 @@ log = logging.getLogger(__name__)
 def _load_character_voices() -> dict[str, dict]:
     """Load TTS voice config from characters.yaml."""
     try:
-        from backend.tools.live_overlay import _load_character_tts_config
-        yaml_voices = _load_character_tts_config()
+        from backend.data.loader import load_character_tts_config
+        yaml_voices = load_character_tts_config()
         if yaml_voices:
             return yaml_voices
     except Exception:

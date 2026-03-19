@@ -1,64 +1,71 @@
 # AI Game Overlay (게임 오버레이)
 
-CV-based AI overlay for PC games. Captures screen via `dxcam`, processes with OpenCV/EasyOCR, displays insights through a transparent Tauri overlay. **Anti-cheat safe** — no memory reading, no injection, screen capture only.
+AI companion overlay for PC games. Captures screen via `dxcam`, detects events with OpenCV + CLIP, generates personality-driven reactions via Claude Haiku Vision API, displays through a transparent Tauri overlay. **Anti-cheat safe** — no memory reading, no injection, screen capture only.
 
-**Demo targets**: Minesweeper (pipeline validation) → MapleStory → Mabinogi Mobile
+**Current target**: Palworld (primary), MapleStory (secondary)
 
 ## Tech Stack
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Capture | Python + `dxcam` | Windows DXGI, ~240 FPS, sub-5ms |
-| CV/Detection | OpenCV, EasyOCR (Korean) | Template matching, color thresholding, OCR |
-| Local AI | Moondream2 (Phase 3) | 1.8B params, ~4GB VRAM, on-demand |
-| Communication | WebSocket (localhost:9600) | JSON protocol, bidirectional |
-| Overlay UI | Tauri v2 + TypeScript | Transparent, click-through, ~20MB RAM |
+| CV/Detection | OpenCV (event detection) + CLIP (scene classification) | Morphological, spatial zones, zero-shot |
+| AI | Claude Haiku Vision API | Streaming SSE, ~1-2s latency |
+| Communication | HTTP SSE (localhost:8080) | FastAPI + sse-starlette, unidirectional |
+| Overlay UI | Tauri v2 + React + TypeScript | Transparent, click-through, ~20MB RAM |
 | i18n | Custom TS `t()` (ko primary, en fallback) | ~80 lines, zero deps, type-safe keys |
+| TTS | Edge TTS (optional) | Per-character voice + emotion prosody |
 
 ## Architecture
 
 ```
-[Screen] → CAPTURE (dxcam) → PROCESS (OpenCV/AI) → DISPLAY (Tauri overlay)
-                                    │
-                        Tiered: <20ms / ~500ms / ~3s
-                                    │
-                            WebSocket (port 9600)
+[Screen] → CAPTURE (dxcam) → CV EVENT DETECT → PERSONALITY ENGINE → CLAUDE API → OVERLAY
+                                    │                    │                │           │
+                               L1: ~3ms           L2: routing      L3: streaming   L4: Tauri
+                               L1.5: ~50ms         + emotions       + [SKIP]        + sprites
+                               (CLIP optional)     + cooldowns      + similarity     + micro-expr
 ```
 
-Three processing tiers:
-- **Tier 1 (<20ms)**: OpenCV template matching, color thresholding (every frame)
-- **Tier 2 (~500ms)**: EasyOCR, buff detection (periodic)
-- **Tier 3 (~3s)**: Moondream2 local VLM reasoning (on-demand, Phase 3)
+5-layer event-driven pipeline:
+- **L1 (~3ms)**: Local CV event detection — motion, spatial zones, brightness, variance
+- **L1.5 (~50ms)**: CLIP scene classification — 26 game state labels (optional)
+- **L2**: Personality engine — OCC emotions, dynamic cooldowns, response routing
+- **L3**: Claude Haiku Vision API — streaming, [SKIP] escape, similarity gate
+- **L4**: Tauri overlay — character sprites, crossfade, micro-expressions, TTS
 
 ## Project Structure
 
 ```
 ai-game-overlay/
-├── backend/              # Python — capture + CV + AI + WebSocket server
-│   ├── main.py           # Entry point: threads + WS server
-│   ├── config.py         # Constants, ROI coords, thresholds
-│   ├── capture/          # dxcam screen grab + frame diff
-│   ├── processors/       # Per-game CV pipelines (minesweeper.py, maplestory.py)
-│   ├── solver/           # Game-specific logic (minesweeper solver)
-│   ├── ai/               # OCR wrapper, Moondream2 (Phase 3)
-│   ├── state/            # Rolling game state accumulator
-│   ├── server/           # WebSocket server
-│   └── tests/            # Pytest + screenshot fixtures
-├── frontend/             # Tauri v2 + TypeScript
-│   ├── src/              # Web UI (overlay renderer, widgets, WS client)
-│   │   └── i18n/         # Custom i18n: ko.ts, en.ts, index.ts (zero deps)
-│   └── src-tauri/        # Rust backend (window config, hotkeys, capabilities)
-├── docs/                 # Layered documentation (see below)
-└── scripts/              # Launch scripts (.bat for Windows)
+├── backend/                  # Python — capture + CV + AI + HTTP server
+│   ├── config.py             # Constants, thresholds
+│   ├── capture/              # dxcam screen grab (+ mss fallback)
+│   ├── cv/                   # Event detection + CLIP game classifier
+│   ├── personality/          # OCC emotions, timing, behavior tracking
+│   ├── memory/               # Cross-session companion memory
+│   ├── tts/                  # Edge TTS with per-character voices
+│   ├── tools/                # Entry points + training pipeline tools
+│   │   ├── web_overlay.py    # Main entry: FastAPI SSE + ai_loop
+│   │   └── live_overlay.py   # Character prompts, game contexts, helpers
+│   ├── data/                 # YAML configs (characters, games)
+│   │   ├── characters.yaml   # 6 characters with KO+EN personalities
+│   │   └── games/            # Per-game context (palworld.yaml, etc.)
+│   └── tests/                # Pytest
+├── frontend/                 # Tauri v2 + React + TypeScript
+│   ├── src/                  # Screens (Config, Overlay, Consent), components
+│   │   └── i18n/             # Custom i18n: ko.ts, en.ts, index.ts
+│   └── src-tauri/            # Rust backend (window mgmt, system tray)
+├── docs/                     # Layered documentation (see below)
+└── scripts/                  # Launch scripts (.bat for Windows)
 ```
 
 ## Commands
 
 ```bash
-# Backend (Python, Windows native)
-cd backend && python main.py --game minesweeper
+# Backend
+python -X utf8 -m backend.tools.web_overlay --game palworld --character nozomi
 
-# Frontend (Tauri, Windows native)
+# Frontend (Tauri)
 cd frontend && npm run tauri dev
 
 # Tests
@@ -68,36 +75,26 @@ cd backend && pytest tests/
 scripts\start_all.bat
 ```
 
-## Korean UI / English Code
+## Adding New Content (Data-Driven Pipeline)
 
-- All user-facing text in Korean (한국어) via custom `t()` function (`src/i18n/`)
-- Translations: `src/i18n/ko.ts` (primary), `src/i18n/en.ts` (fallback) — typed keys, zero deps
-- AI coach responses: NOT through i18n — backend uses locale-specific system prompts
-- All code, comments, variable names in English
+**New character** — edit `backend/data/characters.yaml` only:
+- Add personality, speech_style (KO), personality_en, speech_style_en
+- Add templates (per-event instant responses), tts (voice + rate)
+- Add preferences, disagreement_style
+- Add sprite assets to `frontend/public/characters/<name>/` or Lottie to `frontend/public/lottie/`
 
-## WebSocket Protocol
-
-All messages: `{ "type": string, "ts": number, "game"?: string, "data": object }`
-
-| Direction | Types | Purpose |
-|-----------|-------|---------|
-| Backend → Frontend | `state_update`, `suggestion`, `status` | Game state, AI suggestions, perf stats |
-| Frontend → Backend | `config`, `set_region` | Settings, ROI selection |
-
-> Full protocol spec: [docs/P2-ws-protocol.md](docs/P2-ws-protocol.md)
+**New game** — add `backend/data/games/<game>.yaml`:
+- context_ko, context_en (game-specific visual cues, action categories)
+- No code changes needed
 
 ## Documentation Strategy
-
-Priority-layered system — only highest-priority docs loaded per session:
 
 | Priority | Auto-loaded? | Files | Update Frequency |
 |----------|-------------|-------|-----------------|
 | P0 | Always | `CLAUDE.md` (this), `MEMORY.md` | Every major change |
-| P1 | On-demand | `docs/P1-cv-guide.md` — CV techniques, ROI definitions | Per new game added |
-| P2 | On-demand | `docs/P2-ws-protocol.md` — message format spec | On protocol change |
+| P1 | On-demand | `docs/P1-cv-guide.md` — CV + CLIP detection | Per new game added |
+| P2 | On-demand | `docs/P2-sse-protocol.md` — SSE message spec | On protocol change |
 | P3 | On-demand | `docs/P3-overlay-patterns.md` — UI patterns, anti-cheat | Rarely |
-
-**Update rule**: After any session that changes architecture, adds a game, or modifies the protocol, update the relevant doc. CLAUDE.md stays under 150 lines.
 
 ## Anti-Cheat Safety Rules
 
@@ -105,74 +102,21 @@ Priority-layered system — only highest-priority docs loaded per session:
 2. NEVER inject DLLs or hook DirectX/Vulkan
 3. ONLY capture screen via OS-level APIs (DXGI Desktop Duplication)
 4. Overlay is a separate window — never attached to game process
-5. Games MUST run in Borderless Windowed or Windowed mode
+5. Overlay excluded from capture via `WDA_EXCLUDEFROMCAPTURE`
+6. Games MUST run in Borderless Windowed or Windowed mode
 
 ## Key Constraints
 
-- VRAM budget: Game (~2-4GB) + EasyOCR (~1.5GB) + Moondream2 (~4GB) = ~9.5GB max
+- VRAM budget: Game (~2-4GB) + CLIP (~1GB) = ~5GB (Claude API is remote)
 - Platform: Native Windows only (screen capture requires direct display access)
 - Development: Can edit code in WSL2/VS Code, but run/test on Windows side
-- Dependencies: ALWAYS install latest stable versions. Never trust hardcoded versions from AI — run `pip install --upgrade` and `npm update` before coding. Pin after install via `pip freeze`.
-
-## Session Checklist
-
-Before each coding session:
-1. `cd backend && pip install --upgrade -r requirements.txt`
-2. `cd frontend && npm update`
-3. Read this file + check MEMORY.md for context
-4. Reference P1-P3 docs only when working on that specific area
+- Dependencies: ALWAYS install latest stable versions. Pin after install via `pip freeze`.
 
 ## Engineering Workflow (MANDATORY)
 
 Claude is **Researcher + Planner + Orchestrator + Reviewer**. Agents are **Workers**.
-This workflow applies to EVERY non-trivial task (3+ files or requiring research).
 
-### Phase 1: RESEARCH (understand before acting)
-- Spawn research agent(s) to investigate the subject matter
-- Read relevant codebase sections
-- Search for best practices, prior art, evidence-based approaches
-- Compile findings into a concise analysis doc (in the conversation)
-- **Never skip this phase.** Uninformed implementation wastes time.
-
-### Phase 2: PLAN (design before building)
-- Based on research, create a concrete implementation plan
-- Decompose into independent, non-overlapping tasks
-- Define clear scope, expected output, and files touched for each agent
-- Identify dependencies (what must be sequential)
-- Use TodoWrite to track the plan
-- **Present the plan to the user and WAIT for approval before spawning agents**
-- **NEVER proceed to Phase 3 without explicit user go-ahead**
-
-### Phase 3: EXECUTE (parallel agents implement)
-- Spawn parallel agents for independent tasks
-- Each agent gets: specific files to modify, clear requirements, no overlap
-- Never do sequentially what can be done in parallel
-- Never duplicate work agents are doing
-- Monitor progress via file modification notifications
-
-### Phase 4: REVIEW (verify against the plan)
-- Evaluate each agent's output against the plan requirements
-- Run tests (TypeScript check, Python import check, functional tests)
-- Verify no conflicts between parallel agent outputs
-- Send back for improvements if insufficient
-- Only commit/push after ALL checks pass
-
-### Agent Roles (spawned as subagents)
-
-| Role | Responsibility |
-|------|---------------|
-| **Researcher** | Web search, reads prior art, explores codebase — produces analysis |
-| **Coder** | Implements based on research findings + plan |
-| **Tester** | Runs tests, checks output, flags issues |
-
-### Anti-patterns (NEVER do these)
-- Implementing without researching first
-- Implementing without a plan
-- Editing 5+ files sequentially as the main agent
-- Doing research AND implementation in the same turn
-- Starting implementation without user approving the plan
-- Committing without reviewing and testing agent output
-- Spawning agents with overlapping file scopes
+### Phase 1: RESEARCH → Phase 2: PLAN (present, wait for approval) → Phase 3: EXECUTE (parallel agents) → Phase 4: REVIEW (test, verify, commit)
 
 **Pre-authorized actions** (no confirmation needed):
 - Edit/create files in this repo

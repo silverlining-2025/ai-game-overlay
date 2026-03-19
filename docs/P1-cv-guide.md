@@ -1,84 +1,111 @@
-# P1 — Computer Vision Guide
+# P1 — Computer Vision & Detection Guide
 
-Reference for CV techniques used per game. Update when adding a new game or changing detection methods.
+Reference for the CV event detection pipeline. Update when changing detection methods or adding a new game.
 
-## General Techniques
+## Event Detection Pipeline (`backend/cv/event_detector.py`)
 
-### Frame Differencing (Gate)
-- `cv2.absdiff(prev, curr)` → mean pixel diff < threshold (5.0) → skip
-- Eliminates 80-95% of redundant processing
-- Applied before any game-specific processing
+### Overview
+Runs every frame at ~30 FPS. Produces an `EventSignal` with a score (0.0–1.0) that determines whether to call the Claude API and with what urgency.
 
-### Template Matching
-- `cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)`
-- Threshold: 0.85+ for reliable matches
-- Store templates as small PNGs in `backend/templates/{game}/`
-- Works best for static UI elements (icons, buttons, indicators)
+All analysis is done on **downscaled grayscale** (320×180) for speed. Target: <5ms per frame.
 
-### Color Thresholding (HSV)
-- Convert ROI to HSV: `cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)`
-- Mask color range: `cv2.inRange(hsv, lower, upper)`
-- Count non-zero pixels for bar fill percentage
-- Ideal for HP/MP/EXP bars with known colors
+### Techniques Used
 
-### EasyOCR (Korean + English)
-- `reader = easyocr.Reader(['ko', 'en'], gpu=True)`
-- Lazy-load on first use (~1.5GB VRAM)
-- Pre-crop ROI to text-only region for speed
-- Game fonts may need preprocessing (threshold, denoise)
+#### 1. Frame Differencing (Motion Detection)
+- `cv2.absdiff(blur_prev, blur_curr)` with threshold > 18
+- Gaussian blur (5×5) pre-filter removes particle/damage number noise
+- Morphological opening (3×3 ellipse kernel) filters small noise
+- Adaptive baseline from rolling median of last 20 frames
 
----
+#### 2. Spatial Motion Zones (4×4 Grid)
+- Frame divided into 4×4 grid zones
+- Center 2×2 zones = gameplay area (motion_center)
+- Outer 12 zones = UI/edge areas (motion_edges)
+- Center-only motion = gameplay animation (lower score)
+- Edge motion with UI change = state change (higher score)
 
-## Game: Minesweeper (지뢰찾기)
+#### 3. Brightness & Variance Tracking
+- Mean brightness: sudden drops indicate danger/death screens
+- Variance (std dev): sharp drops indicate menu/loading screens
+- Menu detection: current variance < 40% of recent median
 
-### ROI Definition
-- Grid region: manually configured or auto-detected via contour detection
-- Cell size: typically 16x16 or 32x32 depending on version
+#### 4. Optical Flow (Every 3rd Frame)
+- Farneback dense optical flow
+- Mean magnitude indicates action intensity
+- Skipped during sustained idle (adaptive frame skipping)
 
-### Cell Classification
-Primary method: **dominant color matching** (Minesweeper numbers have unique colors)
+#### 5. Color Histogram Comparison
+- HSV histogram (24×24 bins)
+- Correlation < 0.6 = scene transition
+- Skipped during idle periods
 
+### Event Scoring
+
+| Score | Label | Trigger |
+|-------|-------|---------|
+| 0.85+ | `scene_change` | Histogram shift or menu detected |
+| 0.75 | `major` | Motion ratio > 6× baseline (not center-only) |
+| 0.55 | `event` | Motion ratio > 3× or high flow + motion |
+| 0.60 | `ui_event` | Edge motion + UI region change |
+| 0.20 | `minor` | Motion > 2% or flow > 1.0 |
+| 0.0 | `idle` | Nothing happening |
+
+### EventSignal Fields
 ```python
-CELL_COLORS_BGR = {
-    (255, 0, 0): "1",      # blue
-    (0, 128, 0): "2",      # green
-    (0, 0, 255): "3",      # red
-    (128, 0, 0): "4",      # dark blue
-    (0, 0, 128): "5",      # maroon
-    (128, 128, 0): "6",    # teal
-}
+@dataclass
+class EventSignal:
+    score: float          # 0.0–1.0 importance
+    motion_pct: float     # % of pixels changed
+    flow_magnitude: float # optical flow intensity
+    scene_change: bool    # histogram/SSIM scene transition
+    ui_change: bool       # UI region changed
+    label: str            # idle/minor/event/major/scene_change
+    motion_center: float  # center 2×2 zone motion %
+    motion_edges: float   # outer zone motion %
+    brightness: float     # mean brightness
+    variance: float       # std deviation
+    menu_likely: bool     # variance dropped significantly
 ```
 
-Fallback: template matching against captured cell reference images.
+---
 
-### State Detection
-- Unrevealed: 3D raised border pattern (edge detection)
-- Revealed empty: uniform flat color
-- Flag: specific icon template
-- Mine: specific icon template (game over state)
+## CLIP Scene Classification (`backend/cv/game_classifier.py`)
+
+### Overview
+Optional layer that classifies the current game state using CLIP (openai/clip-vit-base-patch32). Runs ~50ms on GPU, ~30ms cached.
+
+### Modes
+1. **Fine-tuned (CoOp)**: loads trained prompt embeddings from `backend/models/game_classifier/`
+2. **Zero-shot**: uses hand-crafted text prompts — works out of the box
+
+### 26-Label Taxonomy (Palworld)
+
+| Group | Labels |
+|-------|--------|
+| Combat (3) | `combat`, `capturing`, `boss_fight` |
+| Exploration (5) | `exploring`, `mounted_ground`, `mounted_flying`, `gathering`, `dungeon` |
+| Base (3) | `building`, `base_view`, `crafting_menu` |
+| Menu/UI (7) | `inventory`, `pal_management`, `technology_tree`, `map_screen`, `merchant_shop`, `breeding_condenser`, `settings_menu` |
+| Game Flow (7) | `loading_screen`, `death_respawn`, `cutscene_notification`, `dialogue_interaction`, `character_creation`, `world_select`, `title_screen` |
+| Meta (1) | `external_app` |
+
+### Integration with Event Detector
+CLIP labels override event detector labels when confidence is high:
+- `loading_screen` at >70% → forces `loading` label
+- Menu-type labels at >60% → forces that label
+- Helps the personality engine route to appropriate responses
 
 ---
 
-## Game: MapleStory (메이플스토리)
+## Adding a New Game
 
-### ROI Definitions
-| Element | Location | Detection Method |
-|---------|----------|-----------------|
-| HP bar | Bottom-center, fixed | Red color threshold + pixel count |
-| MP bar | Below HP, fixed | Blue color threshold + pixel count |
-| EXP bar | Bottom of screen, fixed | Yellow color threshold |
-| Minimap | Top-right corner | Template match frame, analyze contents |
-| Buff icons | Top-right, below minimap | Template matching per icon |
-| Chat | Bottom-left | EasyOCR (Korean) |
-| Damage numbers | Floating above mobs | EasyOCR or color-based blob detection |
+1. Add game-specific UI regions to `EventDetector._get_ui_regions()`
+2. Create `backend/data/games/<game>.yaml` with visual cue descriptions
+3. Optionally add game-specific CLIP labels if the 26-label taxonomy doesn't fit
+4. Update `event_detector.py` if game has unique UI patterns worth detecting
 
-### Tiered Processing
-- **Every frame**: HP/MP percentage (fast color threshold, <5ms)
-- **Every 500ms**: Buff icons via template matching (~20ms)
-- **Every 3s**: Chat OCR, damage number OCR (~100ms)
+---
 
-### Templates Needed
-Capture manually during gameplay and store in `backend/templates/maplestory/`:
-- `hp_bar_frame.png` — HP bar border for locating
-- `buff_*.png` — each buff icon (Holy Symbol, etc.)
-- `mob_hp_bar.png` — generic mob HP bar template
+## Anti-Cheat Safety
+
+All detection uses screen capture only (DXGI Desktop Duplication via dxcam). No memory reading, no process attachment, no injection. The overlay window is excluded from capture via `WDA_EXCLUDEFROMCAPTURE`.
