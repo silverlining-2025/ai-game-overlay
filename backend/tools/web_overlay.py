@@ -317,24 +317,35 @@ def _trigram_similarity(a: str, b: str) -> float:
     return len(tri_a & tri_b) / len(tri_a | tri_b)
 
 
-def _get_template_response(event_label: str, mode, character: str) -> str | None:
+TEMPLATES = {
+    "scene_change": {
+        "ko": ["어?", "오?", "뭐야?", "잠깐", "헐"],
+        "en": ["Huh?", "Oh?", "Wait—", "Whoa", "Hold on"],
+    },
+    "major": {
+        "ko": ["헐!", "와!", "오오!", "야!", "대박"],
+        "en": ["Whoa!", "Oh!", "Wow!", "Hey!", "No way"],
+    },
+}
+
+
+def _get_template_response(event_label: str, mode, character: str, locale: str = "ko") -> str | None:
     """Pre-written instant responses for common events. Returns None to use API instead."""
     import random
     from backend.personality.engine import ResponseMode
 
-    # Only use templates for BURST mode on clear events
     if mode != ResponseMode.BURST:
         return None
 
-    templates = {
-        # Templates are per-event, character-agnostic (personality comes from the delivery)
-        # These fire instantly (0ms) instead of waiting 1-2s for API
-    }
+    templates = TEMPLATES.get(event_label, {}).get(locale, [])
+    if not templates:
+        return None
 
-    # Don't use templates for now — let Claude handle everything
-    # This is a placeholder for when we have enough labeled data to
-    # know which events are reliably detected
-    return None
+    # Only use templates 30% of the time — rest go to Claude for richer responses
+    if random.random() > 0.3:
+        return None
+
+    return random.choice(templates)
 
 
 def _save_training_pair(frame, text: str, cycle: int, game: str) -> None:
@@ -688,7 +699,7 @@ def main() -> None:
 
             try:
                 # --- Pre-written template responses (skip API for known events) ---
-                template = _get_template_response(signal.label, mode, args.character)
+                template = _get_template_response(signal.label, mode, args.character, locale=args.locale)
                 if template:
                     dialogue = template
                     elapsed_ms = 0
@@ -696,6 +707,8 @@ def main() -> None:
                     output_tokens = 0
                     broadcast({"type": "stream_start"})
                     broadcast({"type": "stream_chunk", "text": dialogue})
+                    cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
+                    cost_str = f"{cost:.4f}"
                     broadcast({
                         "type": "stream_end",
                         "text": dialogue,
