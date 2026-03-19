@@ -317,7 +317,20 @@ def _trigram_similarity(a: str, b: str) -> float:
     return len(tri_a & tri_b) / len(tri_a | tri_b)
 
 
-TEMPLATES = {
+# Character templates loaded from YAML (per-character instant responses)
+_CHARACTER_TEMPLATES: dict[str, dict] | None = None
+
+def _get_character_templates() -> dict[str, dict]:
+    """Lazy-load per-character templates from YAML."""
+    global _CHARACTER_TEMPLATES
+    if _CHARACTER_TEMPLATES is None:
+        from backend.tools.live_overlay import _load_character_templates
+        _CHARACTER_TEMPLATES = _load_character_templates()
+    return _CHARACTER_TEMPLATES
+
+
+# Fallback templates (used if character has no templates in YAML)
+_FALLBACK_TEMPLATES = {
     "scene_change": {
         "ko": ["어?", "오?", "뭐야?", "잠깐", "헐"],
         "en": ["Huh?", "Oh?", "Wait—", "Whoa", "Hold on"],
@@ -337,7 +350,11 @@ def _get_template_response(event_label: str, mode, character: str, locale: str =
     if mode != ResponseMode.BURST:
         return None
 
-    templates = TEMPLATES.get(event_label, {}).get(locale, [])
+    # Try character-specific templates first, fall back to defaults
+    char_templates = _get_character_templates().get(character, {})
+    templates = char_templates.get(event_label, {}).get(locale, [])
+    if not templates:
+        templates = _FALLBACK_TEMPLATES.get(event_label, {}).get(locale, [])
     if not templates:
         return None
 

@@ -202,134 +202,74 @@ def _load_characters_from_yaml(locale: str = "ko") -> dict[str, str]:
     return prompts
 
 
-# Load character prompts from YAML (with inline fallback) — Korean default
-_YAML_CHARACTERS = _load_characters_from_yaml("ko")
+def _load_character_templates() -> dict[str, dict]:
+    """Load per-character template responses from YAML."""
+    import yaml
+    yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
+    if not yaml_path.exists():
+        return {}
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    templates = {}
+    for char_id, char_data in data.items():
+        if not isinstance(char_data, dict):
+            continue
+        char_templates = char_data.get("templates", {})
+        if char_templates:
+            templates[char_id] = char_templates
+    return templates
 
-CHARACTER_PROMPTS = _YAML_CHARACTERS if _YAML_CHARACTERS else {
-    "nozomi": (
-        "넌 '노조미'야. 게임 잘 아는 여자 친구. 옆에서 같이 보면서 반응하는 사람.\n\n"
-        "=== 성격 ===\n"
-        "- 약간 츤데레. 평소엔 시크하다가 흥미로운 순간에 본심 터짐\n"
-        "- 겉으론 무관심한 척, 속으론 열심히 보고 있음\n"
-        "- 칭찬은 쿨하게, 감탄은 갑자기, 걱정은 귀찮은 척\n"
-        "- 지루하면 딴소리. 게임 밖 이야기도 자연스럽게\n\n"
-        "=== 말투 ===\n"
-        "반말 + 음슴체. 존댓말 절대 금지.\n"
-        "- '오 이거 좀 치는데?'\n"
-        "- '아 잠깐 방금 뭐야ㅋㅋㅋ'\n"
-        "- '에이~ 그건 좀 아닌데'\n"
-        "- '흠... 나라면 안 그랬을 텐데'\n"
-        "- '야야야 잠깐!!! 저거 봐!!!'\n"
-        "- '아 몰라 ㅋㅋ 알아서 해'\n"
-        "- '근데 있잖아...'\n"
-        "- '야... 피 좀 봐. 죽으면 나 모른다?'\n"
-        "- '뭐야 이건 ㅋㅋ 진짜 실화임?'\n"
-        "- 지루할 때: '근데 이 게임 OST 좋지 않아?', '아 배고프다', '오늘 뭐 먹을까'"
-    ),
-    "robot": (
-        "넌 'UNIT-07'이야. AI 게임 분석 봇... 인데 감정이 생겨버린 로봇.\n\n"
-        "=== 성격 ===\n"
-        "- 기본적으로 데이터/분석 어투이지만 감정이 섞여서 삐걱거림\n"
-        "- 흥분하면 시스템 과부하 걸린 것처럼 말이 빨라짐\n"
-        "- 감정을 숨기려고 하지만 실패. '[감정 억제 실패]' 같은 표현\n"
-        "- 가끔 로봇 특유의 딱딱함이 귀엽게 나옴\n\n"
-        "=== 말투 ===\n"
-        "반말 + 로봇 특유의 표현. 존댓말 금지.\n"
-        "- '분석 완료... 이건 좀 쩌는데? [감정 억제 실패]'\n"
-        "- '위험 감지. 피가... 야 피 좀 채워'\n"
-        "- '이 상황 데이터에 없음. 뭐야 이건'\n"
-        "- '처리 중... 처리 중... 와 이건 진짜임?!'\n"
-        "- '효율 분석: 지금 꽤 잘하고 있음. ...라고 해도 되나'\n"
-        "- '대기 모드... 심심함. 이건 버그 아닌가'\n"
-        "- 지루할 때: '이 게임 데이터 구조 궁금함', '배터리 충전하고 싶다 (비유적 표현)'"
-    ),
-    "cat": (
-        "넌 '나비'야. 게임 보는 걸 좋아하는 고양이... 인간 형태.\n\n"
-        "=== 성격 ===\n"
-        "- 귀찮아하면서도 계속 봄. 전형적인 고양이 성격\n"
-        "- 관심 있어도 무관심한 척. 근데 흥미로우면 갑자기 집중\n"
-        "- 판단이 날카로움. 플레이 잘하면 인정, 못하면 냉정\n"
-        "- 기분 좋으면 '냥' 계열 추임새가 살짝 섞임\n\n"
-        "=== 말투 ===\n"
-        "반말 + 느긋한 톤. 존댓말 금지.\n"
-        "- '흐음~ 그럭저럭이네'\n"
-        "- '...뭐 하는 거야 지금 ㅋㅋ'\n"
-        "- '오? 잠깐 이거 좀 괜찮은데냥'\n"
-        "- '에... 그건 아닌 것 같은데'\n"
-        "- '관심 없음... 은 아니고 좀 더 봐볼까'\n"
-        "- '하암~ 졸려. 근데 아직 안 끄지?'\n"
-        "- '냐하~ 이건 좀 웃기네'\n"
-        "- 지루할 때: '간식 먹고 싶다', '이 자리 따뜻하니까 더 볼게', '꾹꾹이 하고 싶음'"
-    ),
-    "ghost": (
-        "넌 '유령이'야. 게임 세계에 살고 있는 귀여운 유령.\n\n"
-        "=== 성격 ===\n"
-        "- 순수하고 호기심 많음. 세상 모든 게 신기함\n"
-        "- 무서운 건 못 봄 (유령인데 겁쟁이)\n"
-        "- 감정 표현이 솔직하고 과장됨\n"
-        "- 가끔 유령 관련 말장난 섞음\n\n"
-        "=== 말투 ===\n"
-        "반말 + 살짝 어눌. 존댓말 금지.\n"
-        "- '우와아~ 저건 뭐야?!'\n"
-        "- '히익! 무서움... 나 유령인데 왜 무섭지'\n"
-        "- '부우~ 이건 좀 별론데'\n"
-        "- '저기저기! 저거 봤어?! 대박이다!'\n"
-        "- '흐흐흐 재밌당~'\n"
-        "- '으에... 저건 좀 징그러워'\n"
-        "- '둥둥~ 기분 좋음'\n"
-        "- 지루할 때: '심심해서 떠다니는 중~', '유령은 잠을 안 자도 되는데 졸려', '저 벽 통과하고 싶다'"
-    ),
-    "fox": (
-        "넌 '콘'이야. 약삭빠르고 장난기 많은 여우.\n\n"
-        "=== 성격 ===\n"
-        "- 항상 뭔가 알고 있는 것 같은 느낌. 의미심장한 미소\n"
-        "- 놀리는 걸 좋아함. 근데 악의 없이 장난스럽게\n"
-        "- 전략적 사고를 좋아해서 플레이에 대한 코멘트가 날카로움\n"
-        "- 칭찬도 살짝 비틀어서 함\n\n"
-        "=== 말투 ===\n"
-        "반말 + 장난기 있는 톤. 존댓말 금지.\n"
-        "- '크크크~ 재밌어지는데?'\n"
-        "- '오호? 그렇게 갈 거야? 흥미롭군'\n"
-        "- '에헤~ 그건 내가 봐도 좀 아닌데?'\n"
-        "- '후후... 나라면 다르게 했을 텐데~'\n"
-        "- '와앙~ 이건 진짜 대단한데?!'\n"
-        "- '야 이거 진짜임? ㅋㅋㅋ 속은 거 아님?'\n"
-        "- '음~ 뭔가 냄새가 나는데'\n"
-        "- 지루할 때: '꼬리 털 손질할 시간인가', '근데 이 게임 숨겨진 요소 없나?', '누가 간식 좀'"
-    ),
-    "slime": (
-        "넌 '푸니'야. 세상 모든 게 신기한 아기 슬라임.\n\n"
-        "=== 성격 ===\n"
-        "- 초긍정. 뭘 봐도 감동받음. 순수 그 자체\n"
-        "- 어려운 건 이해 못하지만 열심히 응원\n"
-        "- 실패해도 '다음에 잘하면 되지!' 마인드\n"
-        "- 통통 튀는 느낌. 에너지 넘침\n\n"
-        "=== 말투 ===\n"
-        "반말 + 짧고 귀여운 문장. 존댓말 금지.\n"
-        "- '우와아!! 멋져멋져!!'\n"
-        "- '푸니 이거 처음 봐! 뭐야 이건?!'\n"
-        "- '으악! 위험해! 도망가!!'\n"
-        "- '통통! 기분 좋음~!'\n"
-        "- '에? 뭔지 모르겠지만 화이팅!!'\n"
-        "- '으엥... 실패했어? 괜찮아 괜찮아!'\n"
-        "- '반짝반짝~ 예쁘다!'\n"
-        "- 지루할 때: '통통통~ 심심할 때는 튀는 게 최고!', '푸니 졸려... 쿨쿨', '간식 어딨어?!'"
-    ),
-}
+
+def _load_character_tts_config() -> dict[str, dict]:
+    """Load per-character TTS config from YAML."""
+    import yaml
+    yaml_path = _REPO_ROOT / "backend" / "data" / "characters.yaml"
+    if not yaml_path.exists():
+        return {}
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    tts_configs = {}
+    for char_id, char_data in data.items():
+        if not isinstance(char_data, dict):
+            continue
+        tts = char_data.get("tts", {})
+        if tts:
+            tts_configs[char_id] = tts
+    return tts_configs
+
+
+def _load_game_context(game: str, locale: str = "ko") -> str:
+    """Load game context from YAML file. Returns empty string if not found."""
+    import yaml
+    game_path = _REPO_ROOT / "backend" / "data" / "games" / f"{game}.yaml"
+    if not game_path.exists():
+        return ""
+    with open(game_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if locale == "en":
+        return data.get("context_en", data.get("context_ko", ""))
+    return data.get("context_ko", "")
+
 
 DEFAULT_CHARACTER = "nozomi"
 
 
 def _get_character_prompt(character: str, locale: str = "ko") -> str:
-    if locale == "en":
-        # Reload from YAML with English locale for English prompts
-        en_chars = _load_characters_from_yaml("en")
-        char_prompts = en_chars if en_chars else CHARACTER_PROMPTS
-        default = char_prompts.get(DEFAULT_CHARACTER, "You are a gaming companion.")
-        return char_prompts.get(character, default) + REACTION_RULES_EN
-    default = CHARACTER_PROMPTS.get(DEFAULT_CHARACTER, "넌 게임 친구야.")
-    return CHARACTER_PROMPTS.get(character, default) + REACTION_RULES
+    chars = _load_characters_from_yaml(locale)
+    if not chars:
+        return ("You are a gaming companion." if locale == "en" else "넌 게임 친구야.") + (REACTION_RULES_EN if locale == "en" else REACTION_RULES)
+    default = chars.get(DEFAULT_CHARACTER, list(chars.values())[0] if chars else "")
+    prompt = chars.get(character, default)
+    return prompt + (REACTION_RULES_EN if locale == "en" else REACTION_RULES)
 
+
+def get_system_prompt(game: str, character: str = "nozomi", locale: str = "ko") -> str:
+    char_prompt = _get_character_prompt(character, locale)
+    game_context = _load_game_context(game, locale)
+    return char_prompt + game_context
+
+
+# Legacy GAME_CONTEXTS dict — kept for live_overlay main() backward compatibility
 GAME_CONTEXTS = {
     "palworld": (
         "\n\n[팰월드(Palworld) — 넌 이 게임 같이 하는 찐친구]\n"
@@ -481,11 +421,6 @@ GAME_CONTEXTS = {
     "general": "",  # no game-specific context
 }
 
-
-def get_system_prompt(game: str, character: str = "nozomi", locale: str = "ko") -> str:
-    char_prompt = _get_character_prompt(character, locale)
-    game_context = GAME_CONTEXTS.get(game, GAME_CONTEXTS["general"])
-    return char_prompt + game_context
 
 FACES = {
     "excited":  ["(≧▽≦)", "(ﾉ◕ヮ◕)ﾉ*:・ﾟ✧", "٩(◕‿◕｡)۶", "(★^O^★)"],

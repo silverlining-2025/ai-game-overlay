@@ -20,33 +20,27 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# Voice + base prosody per character
-CHARACTER_VOICES: dict[str, dict] = {
-    "nozomi": {
-        "voice": "ko-KR-SunHiNeural",    # Young, bright — matches tsundere energy
-        "base_rate": "+5%",                # Slightly fast — energetic personality
-    },
-    "robot": {
-        "voice": "ko-KR-InJoonNeural",    # Male, steady — robotic feel
-        "base_rate": "-5%",                # Slightly slow — deliberate/analytical
-    },
-    "cat": {
-        "voice": "ko-KR-YuJinNeural",     # Soft female — lazy cat vibe
-        "base_rate": "-10%",               # Slow — languid, unbothered
-    },
-    "ghost": {
-        "voice": "ko-KR-YuJinNeural",     # Soft female — ethereal/airy
-        "base_rate": "-5%",                # Slightly slow — floaty
-    },
-    "fox": {
-        "voice": "ko-KR-SeoHyeonNeural",  # Clear female — sharp/cunning
-        "base_rate": "+10%",               # Fast — quick-witted
-    },
-    "slime": {
-        "voice": "ko-KR-SunHiNeural",     # Bright female — bubbly energy
-        "base_rate": "+15%",               # Fast — bouncy, hyper
-    },
-}
+# Voice + base prosody per character — loaded from YAML with hardcoded fallback
+def _load_character_voices() -> dict[str, dict]:
+    """Load TTS voice config from characters.yaml."""
+    try:
+        from backend.tools.live_overlay import _load_character_tts_config
+        yaml_voices = _load_character_tts_config()
+        if yaml_voices:
+            return yaml_voices
+    except Exception:
+        pass
+    # Fallback if YAML loading fails
+    return {
+        "nozomi": {"voice": "ko-KR-SunHiNeural", "base_rate": "+5%"},
+        "robot": {"voice": "ko-KR-InJoonNeural", "base_rate": "-5%"},
+        "cat": {"voice": "ko-KR-YuJinNeural", "base_rate": "-10%"},
+        "ghost": {"voice": "ko-KR-YuJinNeural", "base_rate": "-5%"},
+        "fox": {"voice": "ko-KR-SeoHyeonNeural", "base_rate": "+10%"},
+        "slime": {"voice": "ko-KR-SunHiNeural", "base_rate": "+15%"},
+    }
+
+CHARACTER_VOICES = _load_character_voices()
 
 # Emotion → additional rate/volume adjustments (stacks on base_rate)
 EMOTION_RATE: dict[str, int] = {
