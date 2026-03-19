@@ -551,9 +551,10 @@ def main() -> None:
         base_system_prompt = get_system_prompt(args.game, args.character, args.locale)
 
         # Inject companion memory context into system prompt
-        memory_context = memory.get_context_for_prompt()
+        memory_context = memory.get_context_for_prompt(locale=args.locale)
         if memory_context:
-            base_system_prompt += f"\n\n[동반자 기억]\n{memory_context}"
+            header = "[Companion Memory]" if args.locale == "en" else "[동반자 기억]"
+            base_system_prompt += f"\n\n{header}\n{memory_context}"
 
         # Layered architecture
         detector = EventDetector(game=args.game)
@@ -714,6 +715,9 @@ def main() -> None:
                         "text": dialogue,
                         "face": pick_face(dialogue),
                         "mood": detect_mood(dialogue),
+                        "cycle": cycle,
+                        "elapsed_ms": 0,
+                        "cost_estimate": cost_str,
                         "debug": {"cycle": cycle, "ms": 0, "cost": cost_str,
                                   "event": signal.label, "score": round(signal.score, 2),
                                   "mode": "template"},
@@ -742,22 +746,34 @@ def main() -> None:
                 prompt_text = ""
 
                 # CV context (structured, helps Claude understand what's happening)
-                prompt_text += (
-                    f"[화면 분석] 움직임:{signal.motion_pct:.0f}% "
-                    f"중앙:{getattr(signal, 'motion_center', 0):.0f}% "
-                    f"가장자리:{getattr(signal, 'motion_edges', 0):.0f}% "
-                    f"장면전환:{'O' if signal.scene_change else 'X'} "
-                    f"메뉴:{'O' if getattr(signal, 'menu_likely', False) else 'X'} "
-                    f"밝기:{getattr(signal, 'brightness', 128):.0f}\n"
-                )
+                if args.locale == "en":
+                    prompt_text += (
+                        f"[Screen Analysis] motion:{signal.motion_pct:.0f}% "
+                        f"center:{getattr(signal, 'motion_center', 0):.0f}% "
+                        f"edges:{getattr(signal, 'motion_edges', 0):.0f}% "
+                        f"scene_change:{'Y' if signal.scene_change else 'N'} "
+                        f"menu:{'Y' if getattr(signal, 'menu_likely', False) else 'N'} "
+                        f"brightness:{getattr(signal, 'brightness', 128):.0f}\n"
+                    )
+                else:
+                    prompt_text += (
+                        f"[화면 분석] 움직임:{signal.motion_pct:.0f}% "
+                        f"중앙:{getattr(signal, 'motion_center', 0):.0f}% "
+                        f"가장자리:{getattr(signal, 'motion_edges', 0):.0f}% "
+                        f"장면전환:{'O' if signal.scene_change else 'X'} "
+                        f"메뉴:{'O' if getattr(signal, 'menu_likely', False) else 'X'} "
+                        f"밝기:{getattr(signal, 'brightness', 128):.0f}\n"
+                    )
 
                 # CLIP scene classification context
                 if clip_label and clip_confidence > 0:
-                    prompt_text += f"[장면 분류] {clip_label} ({clip_confidence:.0%})\n"
+                    label_header = "[Scene Classification]" if args.locale == "en" else "[장면 분류]"
+                    prompt_text += f"{label_header} {clip_label} ({clip_confidence:.0%})\n"
 
                 # Event log (what happened recently)
                 if event_log:
-                    prompt_text += "[최근] " + " → ".join(event_log) + "\n"
+                    header = "[Recent]" if args.locale == "en" else "[최근]"
+                    prompt_text += header + " " + " → ".join(event_log) + "\n"
 
                 # Structured temporal memory — session state context
                 _check_state_contradictions(session_state, cv_context)
@@ -767,20 +783,23 @@ def main() -> None:
 
                 # Anti-repetition — recent responses + covered topics
                 if history:
-                    prompt_text += "반복 금지: " + " / ".join(h[:20] for h in history) + "\n"
+                    prefix = "No repeats: " if args.locale == "en" else "반복 금지: "
+                    prompt_text += prefix + " / ".join(h[:20] for h in history) + "\n"
                 if covered_topics:
-                    prompt_text += "이미 다룬 주제 (다시 언급 금지): " + ", ".join(covered_topics) + "\n"
+                    prefix = "Already covered (don't repeat): " if args.locale == "en" else "이미 다룬 주제 (다시 언급 금지): "
+                    prompt_text += prefix + ", ".join(covered_topics) + "\n"
 
                 # Instruction
                 prompt_text += "\n"
                 if prompt_hint:
                     prompt_text += prompt_hint
                 else:
-                    prompt_text += "화면 보고 캐릭터답게 반응."
+                    prompt_text += "React in character to what's on screen." if args.locale == "en" else "화면 보고 캐릭터답게 반응."
 
                 # Mood coloring — natural tonal instructions from emotional state
-                mood_coloring = personality.get_mood_coloring(locale=args.locale) if hasattr(personality, 'get_mood_coloring') else personality.get_emotion_context()
-                prompt_text += f"\n(톤: {mood_coloring})"
+                mood_coloring = personality.get_mood_coloring(locale=args.locale)
+                tone_label = "Tone" if args.locale == "en" else "톤"
+                prompt_text += f"\n({tone_label}: {mood_coloring})"
 
                 # Confidence — low confidence allows uncertainty
                 confidence = config.get("confidence", 0.5)
@@ -804,7 +823,10 @@ def main() -> None:
                     locale=args.locale
                 ) if hasattr(memory, 'get_fuzzy_callback') else None
                 if fuzzy:
-                    prompt_text += f"\n[어렴풋한 기억] {fuzzy}\n이 기억이 자연스럽게 떠올랐으면 넌지시 언급해.\n"
+                    if args.locale == "en":
+                        prompt_text += f"\n[Fuzzy Memory] {fuzzy}\nIf this memory feels relevant, mention it casually.\n"
+                    else:
+                        prompt_text += f"\n[어렴풋한 기억] {fuzzy}\n이 기억이 자연스럽게 떠올랐으면 넌지시 언급해.\n"
 
                 user_content.append({"type": "text", "text": prompt_text})
 
@@ -823,7 +845,6 @@ def main() -> None:
                         )
 
                 t0 = time.perf_counter()
-                display_b64 = frame_to_base64(frame, max_size=640, quality=60)
 
                 # --- Streaming response ---
                 dialogue = ""
@@ -927,6 +948,9 @@ def main() -> None:
                     "text": dialogue,
                     "face": pick_face(dialogue),
                     "mood": detect_mood(dialogue),
+                    "cycle": cycle,
+                    "elapsed_ms": round(elapsed_ms),
+                    "cost_estimate": cost_str,
                     "debug": {
                         "cycle": cycle,
                         "ms": round(elapsed_ms),

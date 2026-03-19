@@ -68,6 +68,11 @@ class CompanionMemory:
         self._path = _TRAINING_DATA_DIR / game / "companion_memory.json"
         self._data: dict[str, Any] = self.load()
 
+    @property
+    def data(self) -> dict[str, Any]:
+        """Public access to the memory data dict."""
+        return self._data
+
     # ------------------------------------------------------------------
     # Properties for convenient access
     # ------------------------------------------------------------------
@@ -264,13 +269,10 @@ class CompanionMemory:
     # Prompt injection
     # ------------------------------------------------------------------
 
-    def get_context_for_prompt(self) -> str:
+    def get_context_for_prompt(self, locale: str = "ko") -> str:
         """Return a narrative string suitable for injection into the system prompt.
 
         Produces natural, conversational text rather than structured lists.
-        Example output (Korean):
-            이 플레이어와 5번째 세션이야. 저번에 사막 보스 클리어 했었지.
-            예전에 보스전에서 꽤 힘들어했던 거 기억나. 그리고 레어 포획 성공했을 때 진짜 좋아했잖아.
         """
         sessions = self._data["relationship"]["sessions_together"]
         prev_summary = self._data["last_session"].get("summary", "")
@@ -278,55 +280,75 @@ class CompanionMemory:
 
         parts: list[str] = []
 
-        # Session count + previous summary (narrative style)
-        session_line = f"이 플레이어와 {sessions}번째 세션이야."
-        if prev_summary:
-            session_line += f" 저번에 {prev_summary}"
-        parts.append(session_line)
+        if locale == "en":
+            session_line = f"This is session #{sessions} with this player."
+            if prev_summary:
+                session_line += f" Last time: {prev_summary}"
+            parts.append(session_line)
 
-        # Player info (if known)
-        player = self._data["player"]
-        player_bits: list[str] = []
-        if player.get("name"):
-            player_bits.append(f"이름은 {player['name']}")
-        if player.get("level_range"):
-            player_bits.append(f"레벨대는 {player['level_range']}")
-        if player.get("play_style"):
-            player_bits.append(f"{player['play_style']} 스타일")
-        if player_bits:
-            parts.append("플레이어 정보: " + ", ".join(player_bits) + ".")
+            player = self._data["player"]
+            player_bits: list[str] = []
+            if player.get("name"):
+                player_bits.append(f"Name: {player['name']}")
+            if player.get("level_range"):
+                player_bits.append(f"Level: {player['level_range']}")
+            if player.get("play_style"):
+                player_bits.append(f"Style: {player['play_style']}")
+            if player_bits:
+                parts.append("Player: " + ", ".join(player_bits) + ".")
 
-        # Notable moments — narrative form instead of list
-        if moments:
-            recent = moments[-5:]
-            narrative_pieces: list[str] = []
-            for m in recent:
-                weight = m.get("emotional_weight", 1.0)
-                mtype = m.get("type", "notable")
-                text = m["text"]
-
-                if mtype in ("fail", "funny"):
-                    if weight >= 1.5:
-                        narrative_pieces.append(f"{text} 때 진짜 힘들었잖아")
+            if moments:
+                recent = moments[-5:]
+                narrative_pieces: list[str] = []
+                for m in recent:
+                    weight = m.get("emotional_weight", 1.0)
+                    mtype = m.get("type", "notable")
+                    text = m["text"]
+                    if mtype in ("fail", "funny"):
+                        narrative_pieces.append(f"remember when {text}? That was rough" if weight >= 1.5 else f"remember {text}")
+                    elif mtype in ("achievement", "epic"):
+                        narrative_pieces.append(f"{text} was amazing" if weight >= 1.5 else f"remember pulling off {text}")
                     else:
-                        narrative_pieces.append(f"{text} 했던 거 기억나")
-                elif mtype in ("achievement", "epic"):
-                    if weight >= 1.5:
-                        narrative_pieces.append(
-                            f"{text} 성공했을 때 진짜 좋아했잖아"
-                        )
-                    else:
-                        narrative_pieces.append(f"{text} 해냈던 거 기억나")
-                else:
-                    narrative_pieces.append(f"{text} 있었잖아")
+                        narrative_pieces.append(f"there was that time with {text}")
+                if narrative_pieces:
+                    joined = ". Also, ".join(narrative_pieces)
+                    parts.append(f"From before: {joined}.")
+        else:
+            session_line = f"이 플레이어와 {sessions}번째 세션이야."
+            if prev_summary:
+                session_line += f" 저번에 {prev_summary}"
+            parts.append(session_line)
 
-            if narrative_pieces:
-                # Join with natural connectors
-                if len(narrative_pieces) == 1:
-                    parts.append(f"예전에 {narrative_pieces[0]}.")
-                else:
-                    joined = ". 그리고 ".join(narrative_pieces)
-                    parts.append(f"예전에 {joined}.")
+            player = self._data["player"]
+            player_bits: list[str] = []
+            if player.get("name"):
+                player_bits.append(f"이름은 {player['name']}")
+            if player.get("level_range"):
+                player_bits.append(f"레벨대는 {player['level_range']}")
+            if player.get("play_style"):
+                player_bits.append(f"{player['play_style']} 스타일")
+            if player_bits:
+                parts.append("플레이어 정보: " + ", ".join(player_bits) + ".")
+
+            if moments:
+                recent = moments[-5:]
+                narrative_pieces: list[str] = []
+                for m in recent:
+                    weight = m.get("emotional_weight", 1.0)
+                    mtype = m.get("type", "notable")
+                    text = m["text"]
+                    if mtype in ("fail", "funny"):
+                        narrative_pieces.append(f"{text} 때 진짜 힘들었잖아" if weight >= 1.5 else f"{text} 했던 거 기억나")
+                    elif mtype in ("achievement", "epic"):
+                        narrative_pieces.append(f"{text} 성공했을 때 진짜 좋아했잖아" if weight >= 1.5 else f"{text} 해냈던 거 기억나")
+                    else:
+                        narrative_pieces.append(f"{text} 있었잖아")
+                if narrative_pieces:
+                    if len(narrative_pieces) == 1:
+                        parts.append(f"예전에 {narrative_pieces[0]}.")
+                    else:
+                        joined = ". 그리고 ".join(narrative_pieces)
+                        parts.append(f"예전에 {joined}.")
 
         return "\n".join(parts)
 
