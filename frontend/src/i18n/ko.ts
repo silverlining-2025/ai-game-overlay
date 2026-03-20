@@ -78,12 +78,15 @@ const ko = {
   "config.char_ghost": "유령",
   "config.char_fox": "여우",
   "config.char_slime": "슬라임",
-  "config.gemini_key_label": "Google Gemini API 키 (선택사항 — 무료)",
+  "config.gemini_key_label": "Google Gemini API 키 (추천 — 무료!)",
   "config.gemini_key_placeholder": "AIza... 형식의 API 키",
+  "config.gemini_get_key": "무료 API 키 만들기 (30초) →",
   "config.openai_key_label": "OpenAI API 키 (선택사항)",
   "config.openai_key_placeholder": "sk-... 형식의 API 키",
   "config.api_priority": "AI 우선순위: Gemini (무료) → OpenAI → Claude",
   "config.api_key_help": "API 키는 로컬에만 저장됩니다. 서버로 전송되지 않습니다.",
+  "config.need_key": "API 키를 입력해주세요",
+  "config.cost_free": "Gemini 무료 티어 사용 중 — 하루 1,000회 무료 (비용 $0)",
 
   // 동의 화면
   "consent.title": "개인정보 처리 안내",

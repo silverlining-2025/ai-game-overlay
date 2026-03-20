@@ -144,7 +144,12 @@ export default function ConfigScreen({ onStart }: Props) {
         ? t("config.chattiness_normal")
         : t("config.chattiness_talkative");
 
+  const hasAnyKey = !!(geminiKey.trim() || apiKey.trim() || openaiKey.trim());
+  const currentTier = licenseActivated ? "pro" : "free";
+
   const handleStart = async () => {
+    if (!hasAnyKey) return; // Block start without any API key
+
     const config: AppConfig = { game, character, interval: 3, position, chattiness, locale };
 
     // Save config BEFORE creating overlay window (overlay reads this on load)
@@ -161,6 +166,7 @@ export default function ConfigScreen({ onStart }: Props) {
         apiKey: apiKey || undefined,
         geminiKey: geminiKey || undefined,
         openaiKey: openaiKey || undefined,
+        tier: currentTier,
       });
     } catch {
       // Not in Tauri
@@ -190,7 +196,29 @@ export default function ConfigScreen({ onStart }: Props) {
           </select>
         </div>
 
-        {/* API Key */}
+        {/* Gemini API Key — PRIMARY (free tier) */}
+        <div className="config-section">
+          <label className="config-label">{t("config.gemini_key_label")}</label>
+          <div className="api-key-row">
+            <input
+              type="password"
+              className="config-input"
+              placeholder={t("config.gemini_key_placeholder")}
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+            />
+          </div>
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="api-key-link"
+          >
+            {t("config.gemini_get_key")}
+          </a>
+        </div>
+
+        {/* Anthropic API Key — optional */}
         <div className="config-section">
           <label className="config-label">{t("config.api_key_label")}</label>
           <div className="api-key-row">
@@ -233,21 +261,7 @@ export default function ConfigScreen({ onStart }: Props) {
           )}
         </div>
 
-        {/* Gemini API Key */}
-        <div className="config-section">
-          <label className="config-label">{t("config.gemini_key_label")}</label>
-          <div className="api-key-row">
-            <input
-              type="password"
-              className="config-input"
-              placeholder={t("config.gemini_key_placeholder")}
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* OpenAI API Key */}
+        {/* OpenAI API Key — optional */}
         <div className="config-section">
           <label className="config-label">{t("config.openai_key_label")}</label>
           <div className="api-key-row">
@@ -359,12 +373,12 @@ export default function ConfigScreen({ onStart }: Props) {
           {t("config.hint")}
         </p>
 
-        <button type="button" className="btn-start" onClick={handleStart}>
-          {t("config.start")}
+        <button type="button" className="btn-start" onClick={handleStart} disabled={!hasAnyKey}>
+          {hasAnyKey ? t("config.start") : t("config.need_key")}
         </button>
 
         <p className="config-cost">
-          {t("config.cost")}
+          {geminiKey.trim() ? t("config.cost_free") : t("config.cost")}
         </p>
         <button type="button" className="btn-quit" onClick={async () => {
           try {

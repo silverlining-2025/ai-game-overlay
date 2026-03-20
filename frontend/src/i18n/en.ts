@@ -73,12 +73,15 @@ const en: Record<TranslationKey, string> = {
   "config.char_ghost": "Ghost",
   "config.char_fox": "Fox",
   "config.char_slime": "Slime",
-  "config.gemini_key_label": "Google Gemini API Key (optional — free tier)",
+  "config.gemini_key_label": "Google Gemini API Key (recommended — free!)",
   "config.gemini_key_placeholder": "Enter Gemini key (AIza...)",
+  "config.gemini_get_key": "Get free API key (30 seconds) →",
   "config.openai_key_label": "OpenAI API Key (optional)",
   "config.openai_key_placeholder": "Enter OpenAI key (sk-...)",
   "config.api_priority": "AI priority: Gemini (free) → OpenAI → Claude",
   "config.api_key_help": "API keys are stored locally only. Never sent to our servers.",
+  "config.need_key": "Enter at least one API key",
+  "config.cost_free": "Using Gemini free tier — 1,000 calls/day free ($0 cost)",
 
   // Consent screen
   "consent.title": "Privacy Notice",
