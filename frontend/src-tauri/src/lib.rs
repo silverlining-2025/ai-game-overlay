@@ -49,30 +49,57 @@ async fn start_companion(
     eprintln!("[tauri] repo_root: {:?}", repo_root);
 
     let locale_val = locale.unwrap_or_else(|| "ko".into());
-    let backend = std::process::Command::new("python")
-        .args([
-            "-X", "utf8",
-            "-m", "backend.tools.web_overlay",
-            "--game", &game,
-            "--interval", &interval.to_string(),
-            "--character", &character,
-            "--chattiness", &format!("{:.1}", chattiness.unwrap_or(0.5)),
-            "--locale", &locale_val,
-            "--port", "8080",
-            "--headless",
-            "--save-training",
-            "--tier", &tier.unwrap_or_else(|| "free".into()),
-        ])
-        .env("PYTHONIOENCODING", "utf-8")
-        .env("ANTHROPIC_API_KEY", &api_key.unwrap_or_default())
-        .env("GEMINI_API_KEY", &gemini_key.unwrap_or_default())
-        .env("OPENAI_API_KEY", &openai_key.unwrap_or_default())
-        .env("API_MODE", &api_mode.unwrap_or_else(|| "byok".into()))
-        .current_dir(&repo_root)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .map_err(|e| format!("Failed to start Python backend (cwd={:?}): {}", repo_root, e))?;
+    let tier_val = tier.unwrap_or_else(|| "free".into());
+    let api_mode_val = api_mode.unwrap_or_else(|| "byok".into());
+
+    let common_args = vec![
+        "--game".to_string(), game.clone(),
+        "--interval".to_string(), interval.to_string(),
+        "--character".to_string(), character.clone(),
+        "--chattiness".to_string(), format!("{:.1}", chattiness.unwrap_or(0.5)),
+        "--locale".to_string(), locale_val.clone(),
+        "--port".to_string(), "8080".to_string(),
+        "--headless".to_string(),
+        "--save-training".to_string(),
+        "--tier".to_string(), tier_val.clone(),
+    ];
+
+    // Try sidecar first (production), fall back to python -m (development)
+    let sidecar_path = repo_root.join("backend").join("dist").join("ai-companion").join("ai-companion.exe");
+
+    let backend = if sidecar_path.exists() {
+        eprintln!("[tauri] Using sidecar: {:?}", sidecar_path);
+        std::process::Command::new(&sidecar_path)
+            .args(&common_args)
+            .env("ANTHROPIC_API_KEY", &api_key.clone().unwrap_or_default())
+            .env("GEMINI_API_KEY", &gemini_key.clone().unwrap_or_default())
+            .env("OPENAI_API_KEY", &openai_key.clone().unwrap_or_default())
+            .env("API_MODE", &api_mode_val)
+            .current_dir(&repo_root)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .map_err(|e| format!("Failed to start sidecar: {}", e))?
+    } else {
+        eprintln!("[tauri] Dev mode: using python -m");
+        let mut python_args = vec![
+            "-X".to_string(), "utf8".to_string(),
+            "-m".to_string(), "backend.tools.web_overlay".to_string(),
+        ];
+        python_args.extend(common_args);
+        std::process::Command::new("python")
+            .args(&python_args)
+            .env("PYTHONIOENCODING", "utf-8")
+            .env("ANTHROPIC_API_KEY", &api_key.clone().unwrap_or_default())
+            .env("GEMINI_API_KEY", &gemini_key.clone().unwrap_or_default())
+            .env("OPENAI_API_KEY", &openai_key.clone().unwrap_or_default())
+            .env("API_MODE", &api_mode_val)
+            .current_dir(&repo_root)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .map_err(|e| format!("Failed to start Python backend: {}", e))?
+    };
 
     // Store the process handle so we can kill it later
     let state = app.state::<BackendProcess>();
