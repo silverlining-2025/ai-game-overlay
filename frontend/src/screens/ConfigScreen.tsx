@@ -56,7 +56,7 @@ export default function ConfigScreen({ onStart }: Props) {
   const [locale, setLocaleState] = useState<Locale>(() => detectDefaultLocale());
   const [character, setCharacter] = useState<AppConfig["character"]>(() => loadSaved("character", "nozomi"));
   const [game, setGame] = useState<AppConfig["game"]>(() => loadSaved("game", "palworld"));
-  const [position, setPosition] = useState<AppConfig["position"]>(() => loadSaved("position", "top-right"));
+  const [position, setPosition] = useState<AppConfig["position"]>(() => loadSaved("position", "bottom-right"));
   const [chattiness, setChattiness] = useState(() => loadSaved("chattiness", 0.5));
 
   // API key state
@@ -311,7 +311,7 @@ export default function ConfigScreen({ onStart }: Props) {
                   className="btn-toggle-vis"
                   onClick={() => setShowApiKey(!showApiKey)}
                 >
-                  {showApiKey ? "Hide" : "Show"}
+                  {showApiKey ? t("config.hide_key") : t("config.show_key")}
                 </button>
                 <button
                   type="button"

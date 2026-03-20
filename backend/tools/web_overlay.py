@@ -1272,22 +1272,32 @@ def main() -> None:
                     event_log.append(signal.label)
 
             except anthropic.RateLimitError as ex:
-                log.warning("[c%d] Rate limited: %s", cycle, ex)
+                log.warning("[c%d] Rate limited (claude): %s", cycle, ex)
                 broadcast({"type": "error", "code": "rate_limit",
-                           "text": "API 요청 한도 초과 — 잠시 후 재시도" if args.locale == "ko" else "API rate limited — retrying shortly"})
+                           "text": "API 요청 한도 초과 — 다른 API로 전환 중" if args.locale == "ko" else "Rate limited — switching providers"})
             except anthropic.AuthenticationError as ex:
-                log.error("[c%d] Auth error: %s", cycle, ex)
+                log.error("[c%d] Auth error (claude): %s", cycle, ex)
                 broadcast({"type": "error", "code": "auth",
                            "text": "API 키 오류 — 설정에서 확인해주세요" if args.locale == "ko" else "API key error — check settings"})
-            except (anthropic.APIConnectionError, anthropic.APITimeoutError) as ex:
-                log.warning("[c%d] Connection error: %s", cycle, ex)
-                broadcast({"type": "error", "code": "connection",
-                           "text": "API 연결 오류 — 네트워크를 확인해주세요" if args.locale == "ko" else "API connection error — check network"})
             except Exception as ex:
-                provider_name = getattr(provider_chain, 'current', None) and provider_chain.current.name or 'unknown'
-                log.error("[c%d] API error (%s): %s", cycle, provider_name, ex)
-                broadcast({"type": "error", "code": "unknown",
-                           "text": "오류 발생 — 잠시 후 재시도" if args.locale == "ko" else "Error occurred — retrying shortly"})
+                error_str = str(ex).lower()
+                err_provider = getattr(provider_chain, 'current', None) and provider_chain.current.name or 'unknown'
+                if "rate" in error_str and "limit" in error_str:
+                    log.warning("[c%d] Rate limited (%s): %s", cycle, err_provider, ex)
+                    broadcast({"type": "error", "code": "rate_limit",
+                               "text": "API 요청 한도 초과 — 잠시 후 재시도" if args.locale == "ko" else "Rate limited — retrying shortly"})
+                elif "auth" in error_str or "key" in error_str or "401" in error_str or "403" in error_str:
+                    log.error("[c%d] Auth error (%s): %s", cycle, err_provider, ex)
+                    broadcast({"type": "error", "code": "auth",
+                               "text": "API 키 오류 — 설정에서 확인해주세요" if args.locale == "ko" else "API key error — check settings"})
+                elif "connect" in error_str or "timeout" in error_str or "network" in error_str:
+                    log.warning("[c%d] Connection error (%s): %s", cycle, err_provider, ex)
+                    broadcast({"type": "error", "code": "connection",
+                               "text": "API 연결 오류 — 네트워크 확인" if args.locale == "ko" else "Connection error — check network"})
+                else:
+                    log.error("[c%d] API error (%s): %s", cycle, err_provider, ex)
+                    broadcast({"type": "error", "code": "unknown",
+                               "text": "오류 발생 — 잠시 후 재시도" if args.locale == "ko" else "Error occurred — retrying shortly"})
 
             # Variable interval based on mode
             wait = 0.5 if mode == ResponseMode.BURST else args.interval

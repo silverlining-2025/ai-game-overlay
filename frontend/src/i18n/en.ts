@@ -58,6 +58,8 @@ const en: Record<TranslationKey, string> = {
   "config.managed_feature_3": "Unlimited reactions + voice output",
   "config.managed_feature_4": "Session summary reports",
   "config.byok_guide": "View full setup guide →",
+  "config.show_key": "Show",
+  "config.hide_key": "Hide",
 
   // Consent screen
   "consent.title": "Privacy Notice",
@@ -86,6 +88,8 @@ const en: Record<TranslationKey, string> = {
   "companion.quit": "Quit",
   "companion.upgrade_cta": "Upgrade to Premium →",
   "companion.limit_upgrade": "Want unlimited reactions? Upgrade to Premium",
+  "companion.summary_min": "min",
+  "companion.summary_reactions": " reactions",
 
   // Feedback
   "feedback.thanks": "Thanks!",
@@ -106,6 +110,9 @@ const en: Record<TranslationKey, string> = {
   "stats.up": "Up",
   "stats.down": "Down",
   "stats.events": "Events Detected",
+  "stats.hours": "h",
+  "stats.minutes": "m",
+  "stats.seconds": "s",
 
   // Tutorial
   "tutorial.slide1_title": "Meet Your AI Companion",

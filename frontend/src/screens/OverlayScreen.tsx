@@ -418,7 +418,7 @@ export default function OverlayScreen({ config }: Props) {
         } else if (data.type === "session_summary") {
           const mins = data.duration_min || 0;
           const cost = data.cost_usd || 0;
-          const summaryText = `${mins}min | ${data.reactions || 0} reactions | $${cost.toFixed(4)}`;
+          const summaryText = `${mins}${t("companion.summary_min")} | ${data.reactions || 0}${t("companion.summary_reactions")} | $${cost.toFixed(4)}`;
           if (speechRef.current) speechRef.current.textContent = summaryText;
           dispatch({
             type: "RESPONSE",

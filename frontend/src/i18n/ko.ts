@@ -56,6 +56,8 @@ const ko = {
   "config.managed_feature_3": "무제한 반응 + 음성 출력",
   "config.managed_feature_4": "세션 요약 리포트",
   "config.byok_guide": "전체 설정 가이드 보기 →",
+  "config.show_key": "보기",
+  "config.hide_key": "숨기기",
 
   // 동의 화면
   "consent.title": "개인정보 처리 안내",
@@ -84,6 +86,8 @@ const ko = {
   "companion.quit": "종료",
   "companion.upgrade_cta": "프리미엄으로 업그레이드 →",
   "companion.limit_upgrade": "무제한 반응을 원하시면 프리미엄으로 업그레이드하세요",
+  "companion.summary_min": "분",
+  "companion.summary_reactions": "회 반응",
 
   // 피드백
   "feedback.thanks": "감사합니다!",
@@ -104,6 +108,9 @@ const ko = {
   "stats.up": "좋아요",
   "stats.down": "별로예요",
   "stats.events": "감지된 이벤트",
+  "stats.hours": "시간",
+  "stats.minutes": "분",
+  "stats.seconds": "초",
 
   // 튜토리얼
   "tutorial.slide1_title": "AI 컴패니언을 만나보세요",

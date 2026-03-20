@@ -48,7 +48,7 @@ const MOOD_TO_TALK: Record<string, string> = {
 };
 
 // Characters that have sprite assets in /characters/<name>/
-const SPRITE_CHARACTERS = ["nozomi", "keiko"];
+const SPRITE_CHARACTERS = ["nozomi"];
 const DEFAULT_OUTFIT = "casual";
 
 // Fallback characters — uses Lottie animations

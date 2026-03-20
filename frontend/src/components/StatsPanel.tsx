@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "../i18n/useTranslation";
+import type { TranslationKey } from "../i18n/ko";
 import "./StatsPanel.css";
 
 export interface SessionStats {
@@ -17,14 +18,13 @@ interface Props {
   stats: SessionStats;
 }
 
-function formatDuration(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}시간 ${m}분`;
-  if (m > 0) return `${m}분 ${s}초`;
-  return `${s}초`;
+function formatDuration(ms: number, t: (key: TranslationKey) => string): string {
+  const s = Math.floor(ms / 1000) % 60;
+  const m = Math.floor(ms / 60000) % 60;
+  const h = Math.floor(ms / 3600000);
+  if (h > 0) return `${h}${t("stats.hours")} ${m}${t("stats.minutes")}`;
+  if (m > 0) return `${m}${t("stats.minutes")} ${s}${t("stats.seconds")}`;
+  return `${s}${t("stats.seconds")}`;
 }
 
 export default function StatsPanel({ visible, stats }: Props) {
@@ -50,7 +50,7 @@ export default function StatsPanel({ visible, stats }: Props) {
 
       <div className="stats-row">
         <span className="stats-label">{t("stats.time")}</span>
-        <span className="stats-value">{formatDuration(elapsed)}</span>
+        <span className="stats-value">{formatDuration(elapsed, t)}</span>
       </div>
 
       <div className="stats-row">
