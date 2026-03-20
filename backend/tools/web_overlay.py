@@ -47,11 +47,9 @@ _SHUTDOWN = threading.Event()
 
 
 def _force_exit(*_args):
-    """Graceful shutdown — stops all API calls, then exits."""
-    log.info("Shutting down...")
+    """Hard shutdown — kills everything immediately."""
     _SHUTDOWN.set()
-    # Force exit after 2s — uvicorn's graceful shutdown hangs on SSE connections
-    threading.Timer(2.0, lambda: os._exit(0)).start()
+    os._exit(0)
 
 
 # Register signal handlers — these fire on Ctrl+C
