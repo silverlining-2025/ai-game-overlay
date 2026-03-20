@@ -136,6 +136,15 @@ evtSource.onmessage = (event) => {
 
   } else if (data.type === 'limit_reached') {
     speech.textContent = data.text;
+
+  } else if (data.type === 'session_summary') {
+    container.classList.remove('thinking');
+    face.textContent = '( ^ _ ^ )';
+    const mins = data.duration_min || 0;
+    const cost = data.cost_usd || 0;
+    speech.textContent = mins + 'min | ' + (data.reactions||0) + ' reactions | $' + cost.toFixed(4);
+    status.textContent = 'session ended | ' + (data.playstyle||'') + ' | deaths: ' + (data.deaths||0);
+    flashBorder();
   }
 };
 

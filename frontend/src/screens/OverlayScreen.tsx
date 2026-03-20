@@ -415,6 +415,15 @@ export default function OverlayScreen({ config }: Props) {
             payload: { text: limitText, face: "(×_×)", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
           });
           setShowUpgrade(true);
+        } else if (data.type === "session_summary") {
+          const mins = data.duration_min || 0;
+          const cost = data.cost_usd || 0;
+          const summaryText = `${mins}min | ${data.reactions || 0} reactions | $${cost.toFixed(4)}`;
+          if (speechRef.current) speechRef.current.textContent = summaryText;
+          dispatch({
+            type: "RESPONSE",
+            payload: { text: summaryText, face: "( ^ _ ^ )", mood: "chill", cycle: 0, elapsedMs: 0, costEstimate: "" },
+          });
         }
       };
 

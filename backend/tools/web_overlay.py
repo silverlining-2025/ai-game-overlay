@@ -1294,25 +1294,43 @@ def main() -> None:
             if _SHUTDOWN.wait(timeout=wait):
                 break
 
-        # After the while loop ends — save companion memory
+        # --- Session end: generate summary and broadcast ---
+        session_duration = time.time() - session_start_time
+        session_minutes = int(session_duration / 60)
+        playstyle = tracker.get_playstyle()
+        summary = f"Played {args.game}, {api_calls} reactions, {session_minutes}min"
+
+        # Broadcast session summary to frontend
+        broadcast({
+            "type": "session_summary",
+            "duration_min": session_minutes,
+            "reactions": api_calls,
+            "cost_usd": round(total_cost, 4),
+            "playstyle": playstyle,
+            "deaths": tracker.death_count,
+            "tier": args.tier,
+            "providers_used": list(set(
+                getattr(p, 'name', '') for p in provider_chain.providers
+            )),
+        })
+
+        # Save companion memory
         if memory:
-            memory.update_session(f"Played {args.game}, {api_calls} reactions")
+            memory.update_session(summary)
             memory.save()
             log.info("Companion memory saved")
 
         # Save behavior tracker to game DB
         game_db.save_behavior(db_session_id, {
             "death_count": tracker.death_count,
-            "playstyle": tracker.get_playstyle(),
+            "playstyle": playstyle,
             "activity_time": json.dumps(tracker.activity_time),
         })
 
         # End session in game DB
-        game_db.end_session(db_session_id,
-                           summary=f"Played {args.game}, {api_calls} reactions",
-                           playstyle=tracker.get_playstyle())
+        game_db.end_session(db_session_id, summary=summary, playstyle=playstyle)
         game_db.close()
-        log.info("Game DB: session %d ended", db_session_id)
+        log.info("Game DB: session %d ended (%s)", db_session_id, summary)
 
         # Save session recording
         if recorder:
