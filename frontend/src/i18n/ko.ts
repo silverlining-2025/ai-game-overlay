@@ -120,6 +120,33 @@ const ko = {
   "companion.cost_warning": "비용 경고",
   "companion.back_to_settings": "설정으로 돌아가기",
   "companion.quit": "종료",
+  "companion.upgrade_cta": "프리미엄으로 업그레이드 →",
+  "companion.limit_upgrade": "무제한 반응을 원하시면 프리미엄으로 업그레이드하세요",
+
+  // 튜토리얼
+  "tutorial.slide1_title": "AI 컴패니언을 만나보세요",
+  "tutorial.slide1_desc": "게임 화면을 보면서 실시간으로 반응하는 AI 친구입니다",
+  "tutorial.slide2_title": "화면 캡처 + AI 분석",
+  "tutorial.slide2_desc": "OS 수준의 화면 캡처로 게임 상태를 분석합니다",
+  "tutorial.slide2_feature1": "dxcam으로 초당 240프레임 캡처",
+  "tutorial.slide2_feature2": "OpenCV로 이벤트 감지 (~3ms)",
+  "tutorial.slide2_feature3": "AI Vision으로 장면 이해",
+  "tutorial.slide3_title": "조작 방법",
+  "tutorial.slide3_desc": "간단한 키보드 조작으로 오버레이를 제어합니다",
+  "tutorial.slide3_key1": "Alt 키 누르고 있기: 오버레이 드래그/클릭",
+  "tutorial.slide3_key2": "Ctrl+Shift+D: 디버그 정보 표시",
+  "tutorial.slide3_key3": "Ctrl+Shift+S: 세션 통계",
+  "tutorial.slide3_key4": "Alt+F: 텍스트 피드백",
+  "tutorial.slide4_title": "안티치트 안전",
+  "tutorial.slide4_desc": "게임 메모리를 읽거나 수정하지 않습니다",
+  "tutorial.slide4_feature1": "별도 창 동작 — 게임 프로세스와 완전 분리",
+  "tutorial.slide4_feature2": "OS 화면 캡처만 사용 (OBS와 동일 방식)",
+  "tutorial.slide4_feature3": "DLL 인젝션, 메모리 읽기 없음",
+  "tutorial.skip": "건너뛰기",
+  "tutorial.next": "다음",
+  "tutorial.prev": "이전",
+  "tutorial.done": "시작하기",
+  "tutorial.dont_show": "다시 보지 않기",
 } as const;
 
 export default ko;

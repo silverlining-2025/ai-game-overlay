@@ -175,6 +175,7 @@ export default function ConfigScreen({ onStart }: Props) {
         geminiKey: geminiKey || undefined,
         openaiKey: openaiKey || undefined,
         tier: currentTier,
+        apiMode: apiMode,
       });
     } catch {
       // Not in Tauri
@@ -357,17 +358,22 @@ export default function ConfigScreen({ onStart }: Props) {
         <div className="config-section">
           <label className="config-label">{t("config.character_label")}</label>
           <div className="character-grid">
-            {CHARACTER_IDS.map((id) => (
-              <button
-                type="button"
-                key={id}
-                className={`char-btn ${character === id ? "selected" : ""}`}
-                onClick={() => setCharacter(id)}
-              >
-                <span className="char-emoji">{CHARACTER_EMOJIS[id]}</span>
-                <span className="char-label">{t(`config.char_${id}` as any)}</span>
-              </button>
-            ))}
+            {CHARACTER_IDS.map((id) => {
+              const isLocked = currentTier === "free" && id !== "nozomi";
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  className={`char-btn ${character === id ? "selected" : ""} ${isLocked ? "locked" : ""}`}
+                  onClick={() => !isLocked && setCharacter(id)}
+                  disabled={isLocked}
+                >
+                  <span className="char-emoji">{CHARACTER_EMOJIS[id]}</span>
+                  <span className="char-label">{t(`config.char_${id}` as any)}</span>
+                  {isLocked && <span className="lock-badge">PRO</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
 

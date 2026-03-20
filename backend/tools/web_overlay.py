@@ -633,17 +633,21 @@ def main() -> None:
 
         log.info("AI providers: %s", [p.name for p in provider_chain.providers])
 
-        # --- Companion memory (persistent cross-session relationship) ---
+        # --- Companion memory (tier-gated: basic+ only) ---
         from backend.memory.companion_memory import CompanionMemory
-        memory = CompanionMemory(args.game)
-        memory.increment_session()
-        memory.save()
-        log.info("Companion memory: session %d", memory.data["relationship"]["sessions_together"])
+        if args.tier in ("basic", "pro", "streamer"):
+            memory = CompanionMemory(args.game)
+            memory.increment_session()
+            memory.save()
+            log.info("Companion memory: session %d", memory.data["relationship"]["sessions_together"])
+        else:
+            memory = None
+            log.info("Companion memory: disabled (free tier)")
 
         base_system_prompt = get_system_prompt(args.game, args.character, args.locale)
 
         # Inject companion memory context into system prompt
-        memory_context = memory.get_context_for_prompt(locale=args.locale)
+        memory_context = memory.get_context_for_prompt(locale=args.locale) if memory else ""
         if memory_context:
             header = "[Companion Memory]" if args.locale == "en" else "[동반자 기억]"
             base_system_prompt += f"\n\n{header}\n{memory_context}"
@@ -655,17 +659,22 @@ def main() -> None:
         # Behavior tracker for unprompted observations
         tracker = BehaviorTracker()
 
-        # Apply chattiness setting (0.0=quiet, 0.5=normal, 1.0=chatty)
+        # Apply chattiness with tier scaling
         chattiness = max(0.0, min(1.0, args.chattiness))
+        tier_chattiness_mult = {"free": 0.7, "basic": 1.0, "pro": 1.2, "streamer": 1.5}.get(args.tier, 1.0)
+        chattiness = min(1.0, chattiness * tier_chattiness_mult)
         personality.cooldown_sec = 8.0 - chattiness * 6.0      # quiet=8s, chatty=2s
         personality.react_threshold = 0.7 - chattiness * 0.3   # quiet=0.7, chatty=0.4
         personality.idle_chat_after = 20.0 - chattiness * 12.0  # quiet=20s, chatty=8s
         log.info("Chattiness=%.1f (cooldown=%.1fs, threshold=%.2f, idle=%.0fs)",
                  chattiness, personality.cooldown_sec, personality.react_threshold, personality.idle_chat_after)
 
-        # Optional TTS
+        # Optional TTS (tier-gated: free tier cannot use TTS)
         tts = None
-        if args.tts:
+        tts_allowed = tier.get("tts", False)
+        if args.tts and not tts_allowed:
+            log.info("TTS not available on %s tier", args.tier)
+        elif tts_allowed or args.tts:
             try:
                 from backend.tts.engine import TTSEngine
                 tts = TTSEngine(character=args.character)
@@ -691,17 +700,20 @@ def main() -> None:
 
         REANCHOR_EVERY = 7
 
-        # Optional session recorder
+        # Optional session recorder (streamer tier only, or --record override)
         recorder = None
         if args.record:
-            from backend.tools.session_recorder import SessionRecorder
-            recorder = SessionRecorder(
-                game=args.game,
-                character=args.character,
-                locale=args.locale,
-            )
-            recorder.start()
-            log.info("Session recording enabled")
+            if args.tier in ("pro", "streamer"):
+                from backend.tools.session_recorder import SessionRecorder
+                recorder = SessionRecorder(
+                    game=args.game,
+                    character=args.character,
+                    locale=args.locale,
+                )
+                recorder.start()
+                log.info("Session recording enabled")
+            else:
+                log.info("Session recording not available on %s tier", args.tier)
 
         log.info("Pipeline ready: game=%s char=%s tts=%s record=%s",
                  args.game, args.character, bool(tts), bool(recorder))
@@ -918,7 +930,8 @@ def main() -> None:
                 # Game knowledge tips — contextual advice injection
                 from backend.data.loader import get_relevant_tips
                 activity = session_state.get("activity", "idle")
-                tips = get_relevant_tips(args.game, activity, locale=args.locale, max_tips=2)
+                max_tips = 1 if args.tier == "free" else 3  # free gets 1 tip, paid gets 3
+                tips = get_relevant_tips(args.game, activity, locale=args.locale, max_tips=max_tips)
                 if tips:
                     prompt_text += f"\n{tips}"
 
@@ -942,7 +955,7 @@ def main() -> None:
                 fuzzy = memory.get_fuzzy_callback(
                     f"{session_state.get('location', '')} {session_state.get('activity', '')}",
                     locale=args.locale
-                ) if hasattr(memory, 'get_fuzzy_callback') else None
+                ) if memory and hasattr(memory, 'get_fuzzy_callback') else None
                 if fuzzy:
                     if args.locale == "en":
                         prompt_text += f"\n[Fuzzy Memory] {fuzzy}\nIf this memory feels relevant, mention it casually.\n"
@@ -1125,10 +1138,11 @@ def main() -> None:
                         continue
 
                 usage_tracker.record_reaction(cost_usd=call_cost, provider=provider_name)
-                memory.increment_reactions()
+                if memory:
+                    memory.increment_reactions()
 
                 # Track notable moments in companion memory
-                if signal.label in ("major", "scene_change") and dialogue:
+                if memory and signal.label in ("major", "scene_change") and dialogue:
                     memory.add_moment(dialogue[:50], signal.label)
 
                 log.info("[c%d] %s (%.0fms, %s, score=%.2f) %s",
@@ -1209,9 +1223,10 @@ def main() -> None:
                 break
 
         # After the while loop ends — save companion memory
-        memory.update_session(f"Played {args.game}, {api_calls} reactions")
-        memory.save()
-        log.info("Companion memory saved")
+        if memory:
+            memory.update_session(f"Played {args.game}, {api_calls} reactions")
+            memory.save()
+            log.info("Companion memory saved")
 
         # Save session recording
         if recorder:

@@ -115,6 +115,33 @@ const en: Record<TranslationKey, string> = {
   "companion.cost_warning": "Cost warning",
   "companion.back_to_settings": "Back to settings",
   "companion.quit": "Quit",
+  "companion.upgrade_cta": "Upgrade to Premium →",
+  "companion.limit_upgrade": "Want unlimited reactions? Upgrade to Premium",
+
+  // Tutorial
+  "tutorial.slide1_title": "Meet Your AI Companion",
+  "tutorial.slide1_desc": "An AI friend that reacts in real-time while watching your game",
+  "tutorial.slide2_title": "Screen Capture + AI Analysis",
+  "tutorial.slide2_desc": "Uses OS-level screen capture to analyze game state",
+  "tutorial.slide2_feature1": "240 FPS capture via dxcam",
+  "tutorial.slide2_feature2": "Event detection via OpenCV (~3ms)",
+  "tutorial.slide2_feature3": "Scene understanding via AI Vision",
+  "tutorial.slide3_title": "Controls",
+  "tutorial.slide3_desc": "Control the overlay with simple keyboard shortcuts",
+  "tutorial.slide3_key1": "Hold Alt: Drag/click overlay",
+  "tutorial.slide3_key2": "Ctrl+Shift+D: Debug info",
+  "tutorial.slide3_key3": "Ctrl+Shift+S: Session stats",
+  "tutorial.slide3_key4": "Alt+F: Text feedback",
+  "tutorial.slide4_title": "Anti-Cheat Safe",
+  "tutorial.slide4_desc": "Does not read or modify game memory",
+  "tutorial.slide4_feature1": "Separate window — fully isolated from game process",
+  "tutorial.slide4_feature2": "OS screen capture only (same as OBS)",
+  "tutorial.slide4_feature3": "No DLL injection, no memory reading",
+  "tutorial.skip": "Skip",
+  "tutorial.next": "Next",
+  "tutorial.prev": "Previous",
+  "tutorial.done": "Get Started",
+  "tutorial.dont_show": "Don't show again",
 };
 
 export default en;

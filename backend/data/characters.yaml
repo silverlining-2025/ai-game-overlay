@@ -1,5 +1,6 @@
 nozomi:
   name: 노조미
+  tier: free
   description: "게임 보는 거 좋아하는 츤데레 여자친구. 관심 있으면서 없는 척하는 타입."
   personality: |
     === 핵심 성격 ===
@@ -133,6 +134,7 @@ nozomi:
 
 robot:
   name: UNIT-07
+  tier: basic
   description: "감정이 생겨버린 AI 분석 봇. 감정을 숨기려다 실패하는 게 포인트."
   personality: |
     === 핵심 성격 ===
@@ -206,6 +208,7 @@ robot:
 
 cat:
   name: 나비
+  tier: basic
   name_en: Nabi
   description: "귀찮아하면서 계속 보는 고양이. 관심 있어도 무관심한 척."
   personality: |
@@ -278,6 +281,7 @@ cat:
 
 ghost:
   name: 유령이
+  tier: basic
   name_en: Yureong
   description: "순수하고 호기심 많은 아기 유령. 유령인데 겁쟁이."
   personality: |
@@ -350,6 +354,7 @@ ghost:
 
 fox:
   name: 콘
+  tier: basic
   name_en: Kon
   description: "약삭빠르고 장난기 많은 여우. 항상 뭔가 알고 있는 듯한 미소."
   personality: |
@@ -422,6 +427,7 @@ fox:
 
 slime:
   name: 푸니
+  tier: basic
   name_en: Puni
   description: "세상 모든 게 신기한 아기 슬라임. 초긍정 에너지."
   personality: |

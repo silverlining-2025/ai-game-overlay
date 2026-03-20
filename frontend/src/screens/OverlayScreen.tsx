@@ -106,6 +106,9 @@ export default function OverlayScreen({ config }: Props) {
   // Text feedback form (Alt+F)
   const [showTextFeedback, setShowTextFeedback] = useState(false);
 
+  // Upgrade upsell (shown on cost_limit)
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
   // Session stats panel (Ctrl+Shift+S)
   const [showStats, setShowStats] = useState(false);
   const statsRef = useRef<SessionStats>({
@@ -411,6 +414,7 @@ export default function OverlayScreen({ config }: Props) {
             type: "RESPONSE",
             payload: { text: limitText, face: "(×_×)", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
           });
+          setShowUpgrade(true);
         }
       };
 
@@ -514,6 +518,16 @@ export default function OverlayScreen({ config }: Props) {
                   disabled={feedbackGiven !== null}
                   title="별로에요"
                 >▼</button>
+              </div>
+            )}
+            {showUpgrade && !state.isThinking && (
+              <div className="upgrade-hint">
+                <span
+                  className="upgrade-hint-link"
+                  onClick={() => window.open("https://aigamingcompanion.com/upgrade", "_blank")}
+                >
+                  {t("companion.upgrade_cta")}
+                </span>
               </div>
             )}
           </div>

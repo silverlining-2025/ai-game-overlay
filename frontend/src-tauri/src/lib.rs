@@ -18,6 +18,7 @@ async fn start_companion(
     gemini_key: Option<String>,
     openai_key: Option<String>,
     tier: Option<String>,
+    api_mode: Option<String>,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
@@ -66,6 +67,7 @@ async fn start_companion(
         .env("ANTHROPIC_API_KEY", &api_key.unwrap_or_default())
         .env("GEMINI_API_KEY", &gemini_key.unwrap_or_default())
         .env("OPENAI_API_KEY", &openai_key.unwrap_or_default())
+        .env("API_MODE", &api_mode.unwrap_or_else(|| "byok".into()))
         .current_dir(&repo_root)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
