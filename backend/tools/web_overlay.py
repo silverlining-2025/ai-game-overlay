@@ -79,7 +79,7 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 # ---------- Daily Usage Tracker ----------
 
 class UsageTracker:
-    """Tracks daily API reaction counts and cost in a persistent JSON file."""
+    """Tracks daily API reaction counts, cost, and per-provider stats."""
 
     def __init__(self, max_reactions: int = 20):
         self._path = _REPO_ROOT / "training_data" / ".usage.json"
@@ -93,6 +93,7 @@ class UsageTracker:
             "reactions": 0,
             "api_calls": 0,
             "cost_usd": 0.0,
+            "providers": {},  # provider_name → {"calls": N, "cost": X}
         }
 
     def _load(self) -> dict:
@@ -100,8 +101,8 @@ class UsageTracker:
             if self._path.exists():
                 data = json.loads(self._path.read_text(encoding="utf-8"))
                 if data.get("date") == date.today().isoformat():
+                    data.setdefault("providers", {})
                     return data
-                # Date changed — reset for new day
                 log.info("New day detected, resetting usage counter")
         except (json.JSONDecodeError, KeyError, TypeError):
             pass
@@ -115,7 +116,6 @@ class UsageTracker:
         )
 
     def _maybe_reset(self) -> None:
-        """Reset if the stored date is not today (midnight rollover)."""
         today = date.today().isoformat()
         if self._data.get("date") != today:
             log.info("Midnight rollover — resetting daily usage counter")
@@ -129,25 +129,32 @@ class UsageTracker:
                 return True  # premium / unlimited
             return self._data["reactions"] < self._max_reactions
 
-    def record_reaction(self, input_tokens: int, output_tokens: int) -> None:
-        """Increment reaction count and accumulate cost after a successful API response."""
+    def record_reaction(self, cost_usd: float, provider: str = "") -> None:
+        """Increment reaction count and accumulate cost."""
         with self._lock:
             self._maybe_reset()
             self._data["reactions"] += 1
             self._data["api_calls"] += 1
-            cost = (input_tokens * 1.0 + output_tokens * 5.0) / 1_000_000
-            self._data["cost_usd"] = round(self._data["cost_usd"] + cost, 6)
+            self._data["cost_usd"] = round(self._data["cost_usd"] + cost_usd, 6)
+            if provider:
+                p = self._data["providers"].setdefault(provider, {"calls": 0, "cost": 0.0})
+                p["calls"] += 1
+                p["cost"] = round(p["cost"] + cost_usd, 6)
             self._save()
 
-    def record_api_call(self) -> None:
-        """Increment api_calls only (for SKIP/SUPPRESSED responses that still cost tokens)."""
+    def record_api_call(self, cost_usd: float = 0.0, provider: str = "") -> None:
+        """Increment api_calls only (for SKIP/SUPPRESSED responses)."""
         with self._lock:
             self._maybe_reset()
             self._data["api_calls"] += 1
+            self._data["cost_usd"] = round(self._data["cost_usd"] + cost_usd, 6)
+            if provider:
+                p = self._data["providers"].setdefault(provider, {"calls": 0, "cost": 0.0})
+                p["calls"] += 1
+                p["cost"] = round(p["cost"] + cost_usd, 6)
             self._save()
 
     def get_usage(self) -> dict:
-        """Return current usage stats for the /usage endpoint."""
         with self._lock:
             self._maybe_reset()
             return {
@@ -156,6 +163,7 @@ class UsageTracker:
                 "api_calls": self._data["api_calls"],
                 "limit": self._max_reactions,
                 "cost_usd": self._data["cost_usd"],
+                "providers": self._data["providers"],
             }
 
 
@@ -408,10 +416,12 @@ def main() -> None:
     parser.add_argument("--tts", action="store_true", help="Enable voice output (Edge TTS)")
     parser.add_argument("--locale", type=str, default="ko", choices=["ko", "en"],
                         help="UI/prompt language (ko=Korean, en=English)")
-    parser.add_argument("--max-reactions", type=int, default=20, dest="max_reactions",
-                        help="Daily reaction limit (0=unlimited/premium, default=20)")
-    parser.add_argument("--max-cost-usd", type=float, default=2.0, dest="max_cost_usd",
-                        help="Maximum session cost in USD (0=unlimited, default=2.0)")
+    parser.add_argument("--tier", type=str, default="free", choices=["free", "basic", "pro"],
+                        help="Subscription tier (free=10/day, basic=50/day, pro=unlimited)")
+    parser.add_argument("--max-reactions", type=int, default=0, dest="max_reactions",
+                        help="Daily reaction limit override (0=use tier default)")
+    parser.add_argument("--max-cost-usd", type=float, default=0, dest="max_cost_usd",
+                        help="Session cost limit override (0=use tier default)")
     parser.add_argument("--gemini-key", type=str, default="", dest="gemini_key",
                         help="Google Gemini API key")
     parser.add_argument("--openai-key", type=str, default="", dest="openai_key",
@@ -424,6 +434,20 @@ def main() -> None:
                         help="Record session for later demo replay")
     args = parser.parse_args()
 
+    # --- Tier-based defaults ---
+    TIER_DEFAULTS = {
+        "free":  {"max_reactions": 10,  "max_cost_usd": 0.50},
+        "basic": {"max_reactions": 50,  "max_cost_usd": 2.00},
+        "pro":   {"max_reactions": 0,   "max_cost_usd": 10.00},  # 0 = unlimited
+    }
+    tier = TIER_DEFAULTS.get(args.tier, TIER_DEFAULTS["free"])
+    if args.max_reactions == 0:
+        args.max_reactions = tier["max_reactions"]
+    if args.max_cost_usd == 0:
+        args.max_cost_usd = tier["max_cost_usd"]
+    log.info("Tier=%s: max_reactions=%d, max_cost=$%.2f",
+             args.tier, args.max_reactions, args.max_cost_usd)
+
     import anthropic
     import uvicorn
     from fastapi import FastAPI, Request
@@ -434,7 +458,7 @@ def main() -> None:
     # Initialize usage tracker
     usage_tracker = UsageTracker(max_reactions=args.max_reactions)
     log.info("Usage tracker: max_reactions=%d (%s)",
-             args.max_reactions, "unlimited" if args.max_reactions == 0 else "free tier")
+             args.max_reactions, "unlimited" if args.max_reactions == 0 else f"{args.tier} tier")
 
     app = FastAPI()
     # CORS: allow all origins — server only binds to 127.0.0.1 so this is safe
@@ -635,8 +659,7 @@ def main() -> None:
             except Exception as e:
                 log.warning("TTS init failed: %s", e)
 
-        total_input_tokens = 0
-        total_output_tokens = 0
+        total_cost = 0.0  # cumulative session cost in USD
         cycle = 0
         api_calls = 0
 
@@ -779,8 +802,7 @@ def main() -> None:
                     output_tokens = 0
                     broadcast({"type": "stream_start"})
                     broadcast({"type": "stream_chunk", "text": dialogue})
-                    cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
-                    cost_str = f"{cost:.4f}"
+                    cost_str = f"{total_cost:.4f}"  # template = 0 cost, show session total
                     broadcast({
                         "type": "stream_end",
                         "text": dialogue,
@@ -1002,14 +1024,18 @@ def main() -> None:
                 # Extract and strip [STATE: ...] from response, update session state
                 dialogue = _parse_and_strip_state(dialogue, session_state)
 
-                # [SKIP] escape hatch — Claude chose silence
+                # Calculate cost using the provider that actually served this request
+                used_provider = active_provider or provider_chain.current
+                call_cost = used_provider._calc_cost(input_tokens, output_tokens)
+                total_cost += call_cost
+                cost_str = f"{total_cost:.4f}"
+                provider_name = used_provider.name
+
+                # [SKIP] escape hatch — AI chose silence
                 if dialogue == "[SKIP]" or dialogue.startswith("[SKIP]"):
-                    log.info("[c%d] SKIP (%.0fms, %s) Claude chose silence", cycle, elapsed_ms, signal.label)
-                    total_input_tokens += input_tokens
-                    total_output_tokens += output_tokens
-                    cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
-                    cost_str = f"{cost:.4f}"
-                    usage_tracker.record_api_call()
+                    log.info("[c%d] SKIP (%.0fms, %s, %s) AI chose silence",
+                             cycle, elapsed_ms, signal.label, provider_name)
+                    usage_tracker.record_api_call(cost_usd=call_cost, provider=provider_name)
                     if _SHUTDOWN.wait(timeout=args.interval):
                         break
                     continue
@@ -1020,40 +1046,29 @@ def main() -> None:
                     for prev in history
                 )
                 if is_repetitive:
-                    log.info("[c%d] SUPPRESSED (too similar to recent)", cycle)
-                    total_input_tokens += input_tokens
-                    total_output_tokens += output_tokens
-                    cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
-                    cost_str = f"{cost:.4f}"
-                    usage_tracker.record_api_call()
+                    log.info("[c%d] SUPPRESSED (too similar, %s)", cycle, provider_name)
+                    usage_tracker.record_api_call(cost_usd=call_cost, provider=provider_name)
                     if _SHUTDOWN.wait(timeout=args.interval):
                         break
                     continue
 
                 personality.mark_spoken()
 
-                # Track costs + record successful reaction
-                total_input_tokens += input_tokens
-                total_output_tokens += output_tokens
-                cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
-                cost_str = f"{cost:.4f}"
-
                 # Cost ceiling check
                 if args.max_cost_usd > 0:
-                    if cost >= args.max_cost_usd * 0.8 and cost < args.max_cost_usd:
-                        warning_text = f"비용 경고: ${cost:.2f} / ${args.max_cost_usd:.2f}" if args.locale == "ko" else f"Cost warning: ${cost:.2f} / ${args.max_cost_usd:.2f}"
-                        broadcast({"type": "cost_warning", "text": warning_text, "cost": cost, "limit": args.max_cost_usd})
-                        log.warning("Cost at 80%%: $%.4f / $%.2f", cost, args.max_cost_usd)
-                    elif cost >= args.max_cost_usd:
-                        limit_text = f"비용 한도 도달: ${cost:.2f}" if args.locale == "ko" else f"Cost limit reached: ${cost:.2f}"
+                    if total_cost >= args.max_cost_usd * 0.8 and total_cost < args.max_cost_usd:
+                        warning_text = f"비용 경고: ${total_cost:.2f} / ${args.max_cost_usd:.2f}" if args.locale == "ko" else f"Cost warning: ${total_cost:.2f} / ${args.max_cost_usd:.2f}"
+                        broadcast({"type": "cost_warning", "text": warning_text, "cost": total_cost, "limit": args.max_cost_usd})
+                        log.warning("Cost at 80%%: $%.4f / $%.2f", total_cost, args.max_cost_usd)
+                    elif total_cost >= args.max_cost_usd:
+                        limit_text = f"비용 한도 도달: ${total_cost:.2f}" if args.locale == "ko" else f"Cost limit reached: ${total_cost:.2f}"
                         broadcast({"type": "cost_limit", "text": limit_text})
-                        log.warning("Cost ceiling reached: $%.4f >= $%.2f — stopping API calls", cost, args.max_cost_usd)
-                        # Stop API calls but keep CV running
+                        log.warning("Cost ceiling reached: $%.4f >= $%.2f — stopping API calls", total_cost, args.max_cost_usd)
                         if _SHUTDOWN.wait(timeout=args.interval):
                             break
                         continue
 
-                usage_tracker.record_reaction(input_tokens, output_tokens)
+                usage_tracker.record_reaction(cost_usd=call_cost, provider=provider_name)
                 memory.increment_reactions()
 
                 # Track notable moments in companion memory

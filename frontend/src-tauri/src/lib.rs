@@ -17,6 +17,7 @@ async fn start_companion(
     api_key: Option<String>,
     gemini_key: Option<String>,
     openai_key: Option<String>,
+    tier: Option<String>,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
@@ -59,6 +60,7 @@ async fn start_companion(
             "--port", "8080",
             "--headless",
             "--save-training",
+            "--tier", &tier.unwrap_or_else(|| "free".into()),
         ])
         .env("PYTHONIOENCODING", "utf-8")
         .env("ANTHROPIC_API_KEY", &api_key.unwrap_or_default())
