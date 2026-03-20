@@ -1,0 +1,12 @@
+# === Optional ML dependencies (for CLIP classifier + training pipeline) ===
+# Install: pip install -r requirements-ml.txt
+#
+# These are large (~3GB) and NOT needed to run the companion.
+# Only needed for: local CLIP classifier, LoRA training, data labeling.
+
+torch
+transformers
+accelerate
+scikit-learn
+imagehash
+yt-dlp
