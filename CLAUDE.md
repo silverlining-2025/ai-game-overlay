@@ -105,6 +105,24 @@ scripts\start_all.bat
 5. Overlay excluded from capture via `WDA_EXCLUDEFROMCAPTURE`
 6. Games MUST run in Borderless Windowed or Windowed mode
 
+## System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| OS | Windows 10 (21H2+) | Windows 11 |
+| GPU | GTX 1060 6GB | RTX 3060 12GB |
+| CPU | Any quad-core (i5/Ryzen 5) | 6+ cores |
+| RAM | 8 GB | 16 GB |
+| Network | Required (API calls) | Required |
+| Display | Borderless Windowed mode | Same |
+
+**GPU usage breakdown:**
+- Screen capture (dxcam): ~0 VRAM (uses DXGI, not GPU compute)
+- OpenCV event detection: CPU only (~3ms/frame)
+- CLIP classifier (optional): ~1 GB VRAM
+- Game: 2-8 GB VRAM (varies)
+- With local VLM fallback (optional): +2-4 GB VRAM
+
 ## Key Constraints
 
 - VRAM budget: Game (~2-4GB) + CLIP (~1GB) = ~5GB (Claude API is remote)

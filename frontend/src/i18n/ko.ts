@@ -61,6 +61,7 @@ const ko = {
   "config.start": "시작하기",
   "config.cost": "예상 비용: ~$0.05~0.10/시간 (이벤트 기반, Claude Haiku)",
   "config.quit": "종료",
+  "config.system_req": "시스템 요구사항: Windows 10+, GPU 6GB+, RAM 8GB+",
   "config.api_key_label": "Anthropic API 키",
   "config.api_key_placeholder": "sk-ant-... 형식의 API 키 입력",
   "config.test_key": "키 테스트",
@@ -77,6 +78,12 @@ const ko = {
   "config.char_ghost": "유령",
   "config.char_fox": "여우",
   "config.char_slime": "슬라임",
+  "config.gemini_key_label": "Google Gemini API 키 (선택사항 — 무료)",
+  "config.gemini_key_placeholder": "AIza... 형식의 API 키",
+  "config.openai_key_label": "OpenAI API 키 (선택사항)",
+  "config.openai_key_placeholder": "sk-... 형식의 API 키",
+  "config.api_priority": "AI 우선순위: Gemini (무료) → OpenAI → Claude",
+  "config.api_key_help": "API 키는 로컬에만 저장됩니다. 서버로 전송되지 않습니다.",
 
   // 동의 화면
   "consent.title": "개인정보 처리 안내",

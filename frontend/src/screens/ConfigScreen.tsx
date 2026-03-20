@@ -64,6 +64,8 @@ export default function ConfigScreen({ onStart }: Props) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<"idle" | "testing" | "valid" | "invalid">("idle");
   const [apiKeyError, setApiKeyError] = useState("");
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
+  const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem("openai_api_key") || "");
 
   // License key state
   const [licenseKey, setLicenseKey] = useState("");
@@ -88,6 +90,9 @@ export default function ConfigScreen({ onStart }: Props) {
       localStorage.removeItem("anthropic_api_key");
     }
   }, [apiKey]);
+
+  useEffect(() => { localStorage.setItem("gemini_api_key", geminiKey); }, [geminiKey]);
+  useEffect(() => { localStorage.setItem("openai_api_key", openaiKey); }, [openaiKey]);
 
   const handleTestApiKey = async () => {
     if (!apiKey.trim()) return;
@@ -154,6 +159,8 @@ export default function ConfigScreen({ onStart }: Props) {
         chattiness: config.chattiness,
         locale: config.locale,
         apiKey: apiKey || undefined,
+        geminiKey: geminiKey || undefined,
+        openaiKey: openaiKey || undefined,
       });
     } catch {
       // Not in Tauri
@@ -224,6 +231,39 @@ export default function ConfigScreen({ onStart }: Props) {
               <span className="status-icon">&#x2718;</span> {t("config.key_invalid")}{apiKeyError ? `: ${apiKeyError}` : ""}
             </div>
           )}
+        </div>
+
+        {/* Gemini API Key */}
+        <div className="config-section">
+          <label className="config-label">{t("config.gemini_key_label")}</label>
+          <div className="api-key-row">
+            <input
+              type="password"
+              className="config-input"
+              placeholder={t("config.gemini_key_placeholder")}
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* OpenAI API Key */}
+        <div className="config-section">
+          <label className="config-label">{t("config.openai_key_label")}</label>
+          <div className="api-key-row">
+            <input
+              type="password"
+              className="config-input"
+              placeholder={t("config.openai_key_placeholder")}
+              value={openaiKey}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="config-section">
+          <p className="config-hint api-priority-text">{t("config.api_priority")}</p>
+          <p className="config-hint api-key-help-text">{t("config.api_key_help")}</p>
         </div>
 
         {/* License Key */}

@@ -15,6 +15,8 @@ async fn start_companion(
     chattiness: Option<f64>,
     locale: Option<String>,
     api_key: Option<String>,
+    gemini_key: Option<String>,
+    openai_key: Option<String>,
 ) -> Result<(), String> {
     // Start Python backend — find the repo root by walking up from exe/cwd
     let repo_root = {
@@ -60,6 +62,8 @@ async fn start_companion(
         ])
         .env("PYTHONIOENCODING", "utf-8")
         .env("ANTHROPIC_API_KEY", &api_key.unwrap_or_default())
+        .env("GEMINI_API_KEY", &gemini_key.unwrap_or_default())
+        .env("OPENAI_API_KEY", &openai_key.unwrap_or_default())
         .current_dir(&repo_root)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())

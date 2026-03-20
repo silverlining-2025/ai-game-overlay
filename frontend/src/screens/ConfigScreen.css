@@ -277,3 +277,12 @@
   background: #0f2a1a;
   border: 1px solid #22c55e44;
 }
+
+.api-priority-text {
+  margin: 0;
+}
+
+.api-key-help-text {
+  margin: 4px 0 0 0;
+  font-size: 11px;
+}

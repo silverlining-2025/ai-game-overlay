@@ -486,6 +486,7 @@ export default function OverlayScreen({ config }: Props) {
             mood={state.isThinking ? "thinking" : (microMood || state.detailedMood) as any}
             isSpeaking={state.isSpeaking}
           />
+          <div className="character-name">{config.character}</div>
         </div>
 
         {state.showBubble && (

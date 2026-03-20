@@ -116,3 +116,68 @@ context_en: |
   - Map names and character names can be mentioned if readable
 
   Community terms: grinding=training, Star Force=star enhancement, cubing=rolling potentials, boom/blow up=gear destruction, legendary=legend tier, solo=solo play, map sharing=ksing, grind=repetitive hunting, RNG=luck lol, mesos=money, efficiency=EXP efficiency, normalization=Nexon meme (sarcastic)
+
+# Game knowledge for strategic advice (injected when companion should help)
+knowledge_ko:
+  grinding:
+    - "200-210 사냥터: 소멸의 여로(아케인리버 입문). 일퀘 꼭 챙기기"
+    - "210-220: 츄츄 아일랜드 — 몽환의 숲, 슬리피우드 인기. 심볼 일퀘 필수"
+    - "220-230: 리버스시티 / 얌얌 아일랜드. 맵 효율 비교해서 자리 잡기"
+    - "불 지도(레그) + 토템 + 2배 쿠폰 겹치면 경험치 폭발. 타이밍 맞춰서 돌리기"
+    - "사냥 효율은 킬속도가 핵심. 원킬 안 되면 레벨 낮은 맵에서 빠르게 도는 게 나음"
+  boss:
+    - "자쿰: 팔 8개 먼저 처리 → 본체 공략. 물약 넉넉히 챙기기"
+    - "하드 루시드: 1페이즈 낙하물 패턴 숙지 필수. 2페이즈 레이저 타이밍 외우기"
+    - "검은 마법사: 파티 역할 분담(딜러/서포터) 확실히. 부활 횟수 관리"
+    - "일일 보스(자쿰/혼테일/핑크빈 등) 크리스탈 꼬박 파세요. 메소 수입 쏠쏠함"
+    - "보스전 입장 전 버프 풀세팅 + 길드 스킬 + 링크스킬 확인"
+  gear:
+    - "스타포스 안전 구간: 12성/15성까지는 터질 걱정 없음. 17성부터 붐 확률 있음"
+    - "잠재력 등급: 레어(파랑)→에픽(보라)→유니크(노랑)→레전드리(초록). 에픽까지는 큐브 아끼지 말기"
+    - "에디셔널 잠재능력도 챙기면 스탯 차이 큼. 에디 큐브 이벤트 때 돌리기"
+    - "불꽃(추가옵션)은 보스장비일수록 좋은 거 붙음. 환생의 불꽃으로 재설정"
+    - "22성 이상은 파괴방지 쓸지 신중하게 판단. 장비값 vs 방지 비용 계산"
+  funding:
+    - "일일/주간 보스 크리스탈 판매가 안정적 메소 수입원. 매일 꼬박 하기"
+    - "경매장에서 시세 확인 후 저가 매입 → 재판매. 큐브 결과물도 잘 팔림"
+    - "메소 효율 강화 순서: 에픽 잠재 세팅 → 스타포스 → 유니크 큐브 순서가 가성비"
+    - "이벤트 기간에 강화하면 비용 절감 큼. 스타포스 30% 할인 때 몰아서 하기"
+    - "보조 캐릭터(부캐)로도 보스 돌면 크리스탈 수입 2-3배"
+  progression:
+    - "링크스킬 우선 부캐: 메르세데스(경험치) → 에반(룬 지속) → 아란(콤보 경험치) → 데몬어벤져(데미지)"
+    - "유니온(군단) 효과: 크리티컬 확률 → 보공% → 방무% 순서로 투자"
+    - "V매트릭스 노드: 주력기 3개 묶인 트라이노드 2세트가 이상적. 불필요 노드는 분해"
+    - "하이퍼스탯: 데미지% → 보공% → 크뎀% → 방무% 순서로 올리기"
+    - "아케인심볼/어센틱심볼 일퀘 매일 하면 스탯 차이 어마어마함. 절대 빼먹지 말기"
+
+knowledge_en:
+  grinding:
+    - "Lv200-210: Vanishing Journey (Arcane River intro). Always do daily quests for symbols"
+    - "Lv210-220: Chu Chu Island — Slurpy Forest, Torrent Zone popular. Symbol dailies are mandatory"
+    - "Lv220-230: Reverse City / Yum Yum Island. Compare map efficiency before committing"
+    - "Stack Legion map (Legendary) + Totem + 2x EXP coupon for massive EXP gains. Time them together"
+    - "Kill speed is king for grinding efficiency. If you can't one-shot, go to a lower map and clear faster"
+  boss:
+    - "Zakum: Kill all 8 arms first, then focus the body. Bring plenty of potions"
+    - "Hard Lucid: Phase 1 falling objects pattern is key. Phase 2 memorize laser timing"
+    - "Black Mage: Clear party roles (DPS/support). Manage resurrection count carefully"
+    - "Daily bosses (Zakum/Horntail/Pink Bean etc.) — sell crystals every day. Solid meso income"
+    - "Before boss entry: full buffs + guild skills + link skills. Prep matters"
+  gear:
+    - "Star Force safe zones: 12/15 stars have no boom risk. Boom chance starts at 17 stars"
+    - "Potential tiers: Rare(blue) → Epic(purple) → Unique(yellow) → Legendary(green). Don't hoard cubes before Epic"
+    - "Additional Potential matters too — big stat difference. Roll during Additional cube events"
+    - "Flames (bonus stats) are better on boss gear. Use Rebirth Flames to reroll"
+    - "Above 22 stars, think carefully about safeguard. Compare gear cost vs protection cost"
+  funding:
+    - "Daily/weekly boss crystal sales are your stable meso income. Never skip them"
+    - "Check Auction House prices, buy low and resell. Good cube results sell well too"
+    - "Cost-efficient upgrade order: Epic potential first → Star Force → Unique cubes"
+    - "Enhance during events for huge savings. Go hard during 30% Star Force discount"
+    - "Running bosses on alt characters doubles or triples your crystal income"
+  progression:
+    - "Link Skill alt priority: Mercedes (EXP) → Evan (Rune duration) → Aran (combo EXP) → Demon Avenger (damage)"
+    - "Union (Legion) effects: Crit Rate → Boss Damage% → Ignore DEF% in that order"
+    - "V Matrix nodes: Ideal is 2 sets of trinodes with your 3 main skills. Disassemble junk nodes"
+    - "Hyper Stats priority: Damage% → Boss Damage% → Crit Damage% → Ignore DEF%"
+    - "Arcane/Authentic Symbol dailies add up to massive stats over time. Never skip them"

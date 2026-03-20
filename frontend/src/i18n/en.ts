@@ -56,6 +56,7 @@ const en: Record<TranslationKey, string> = {
   "config.start": "Start",
   "config.cost": "Est. cost: ~$0.05-0.10/hr (event-based, Claude Haiku)",
   "config.quit": "Quit",
+  "config.system_req": "System requirements: Windows 10+, GPU 6GB+, RAM 8GB+",
   "config.api_key_label": "Anthropic API Key",
   "config.api_key_placeholder": "Enter API key (sk-ant-...)",
   "config.test_key": "Test Key",
@@ -72,6 +73,12 @@ const en: Record<TranslationKey, string> = {
   "config.char_ghost": "Ghost",
   "config.char_fox": "Fox",
   "config.char_slime": "Slime",
+  "config.gemini_key_label": "Google Gemini API Key (optional — free tier)",
+  "config.gemini_key_placeholder": "Enter Gemini key (AIza...)",
+  "config.openai_key_label": "OpenAI API Key (optional)",
+  "config.openai_key_placeholder": "Enter OpenAI key (sk-...)",
+  "config.api_priority": "AI priority: Gemini (free) → OpenAI → Claude",
+  "config.api_key_help": "API keys are stored locally only. Never sent to our servers.",
 
   // Consent screen
   "consent.title": "Privacy Notice",

@@ -412,6 +412,16 @@ def main() -> None:
                         help="Daily reaction limit (0=unlimited/premium, default=20)")
     parser.add_argument("--max-cost-usd", type=float, default=2.0, dest="max_cost_usd",
                         help="Maximum session cost in USD (0=unlimited, default=2.0)")
+    parser.add_argument("--gemini-key", type=str, default="", dest="gemini_key",
+                        help="Google Gemini API key")
+    parser.add_argument("--openai-key", type=str, default="", dest="openai_key",
+                        help="OpenAI API key")
+    parser.add_argument("--groq-key", type=str, default="", dest="groq_key",
+                        help="Groq API key")
+    parser.add_argument("--demo", type=str, default="",
+                        help="Replay a recorded session file (demo mode)")
+    parser.add_argument("--record", action="store_true",
+                        help="Record session for later demo replay")
     args = parser.parse_args()
 
     import anthropic
@@ -420,8 +430,6 @@ def main() -> None:
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import HTMLResponse, JSONResponse
     from sse_starlette.sse import EventSourceResponse
-
-    from backend.capture.screen import create_capture
 
     # Initialize usage tracker
     usage_tracker = UsageTracker(max_reactions=args.max_reactions)
@@ -538,10 +546,27 @@ def main() -> None:
     def ai_loop():
         import random
 
+        # --- Demo replay mode: no capture, no API ---
+        if args.demo:
+            from backend.tools.session_recorder import SessionPlayer
+            player = SessionPlayer(args.demo)
+            log.info("Demo mode: replaying %s (%d events, %.1fs)",
+                     args.demo, player.event_count, player.duration)
+            while not _SHUTDOWN.is_set():
+                for event in player.play():
+                    if _SHUTDOWN.is_set():
+                        break
+                    broadcast(event)
+                    if _SHUTDOWN.wait(timeout=event.get("delay", 0.5)):
+                        break
+                log.info("Demo loop complete, restarting...")
+            return
+
         from backend.cv.event_detector import EventDetector
         from backend.personality.engine import PersonalityEngine, ResponseMode
         from backend.personality.behavior_tracker import BehaviorTracker
 
+        from backend.capture.screen import create_capture
         cap = create_capture()
         for _ in range(10):
             if cap.grab() is not None:
@@ -549,16 +574,26 @@ def main() -> None:
             time.sleep(0.1)
 
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            log.error("ANTHROPIC_API_KEY not set! Add it to backend/.env")
+
+        from backend.ai.provider import create_provider_chain
+
+        # Load additional API keys from environment
+        gemini_key = args.gemini_key or os.environ.get("GEMINI_API_KEY", "")
+        openai_key = args.openai_key or os.environ.get("OPENAI_API_KEY", "")
+        groq_key = args.groq_key or os.environ.get("GROQ_API_KEY", "")
+
+        provider_chain = create_provider_chain(
+            anthropic_key=api_key,
+            gemini_key=gemini_key,
+            openai_key=openai_key,
+            groq_key=groq_key,
+        )
+
+        if not provider_chain.providers:
+            log.error("No AI providers configured! Add at least one API key.")
             return
 
-        import httpx
-        client = anthropic.Anthropic(
-            api_key=api_key,
-            timeout=httpx.Timeout(30.0, connect=5.0),
-            max_retries=2,
-        )
+        log.info("AI providers: %s", [p.name for p in provider_chain.providers])
 
         # --- Companion memory (persistent cross-session relationship) ---
         from backend.memory.companion_memory import CompanionMemory
@@ -619,11 +654,20 @@ def main() -> None:
 
         REANCHOR_EVERY = 7
 
-        # Prompt caching — cache system prompt by sending it as first user message
-        # (Anthropic caches identical prefixes automatically)
-        cached_system = [{"type": "text", "text": base_system_prompt, "cache_control": {"type": "ephemeral"}}]
+        # Optional session recorder
+        recorder = None
+        if args.record:
+            from backend.tools.session_recorder import SessionRecorder
+            recorder = SessionRecorder(
+                game=args.game,
+                character=args.character,
+                locale=args.locale,
+            )
+            recorder.start()
+            log.info("Session recording enabled")
 
-        log.info("Pipeline ready: game=%s char=%s tts=%s", args.game, args.character, bool(tts))
+        log.info("Pipeline ready: game=%s char=%s tts=%s record=%s",
+                 args.game, args.character, bool(tts), bool(recorder))
         log.info("Pipeline ready")
         time.sleep(1)
 
@@ -716,6 +760,14 @@ def main() -> None:
                 continue
 
             broadcast({"type": "thinking"})
+            if recorder:
+                recorder.record_event(
+                    label=signal.label, score=signal.score,
+                    motion_pct=signal.motion_pct,
+                    scene_change=signal.scene_change,
+                    menu_likely=getattr(signal, 'menu_likely', False),
+                )
+                recorder.record_thinking()
 
             try:
                 # --- Pre-written template responses (skip API for known events) ---
@@ -742,6 +794,16 @@ def main() -> None:
                                   "mode": "template"},
                     })
                     personality.mark_spoken()
+                    if recorder:
+                        recorder.record_stream_start()
+                        recorder.record_stream_chunk(dialogue)
+                        recorder.record_response(
+                            text=dialogue, mood=detect_mood(dialogue),
+                            face=pick_face(dialogue), elapsed_ms=0,
+                            cycle=cycle, event_label=signal.label,
+                            event_score=signal.score, mode="template",
+                            cost_estimate=cost_str,
+                        )
                     if args.save_training:
                         _save_training_pair(frame, dialogue, cycle, args.game)
                     history.append(dialogue)
@@ -757,9 +819,6 @@ def main() -> None:
                 max_tokens = config.get("max_tokens", 80)
                 temperature = config.get("temperature", 0.7)
                 prompt_hint = config.get("prompt_hint", "")
-
-                user_content = []
-                user_content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
 
                 # Build context: CV data + event log + anti-repetition
                 prompt_text = ""
@@ -854,8 +913,6 @@ def main() -> None:
                     else:
                         prompt_text += f"\n[어렴풋한 기억] {fuzzy}\n이 기억이 자연스럽게 떠올랐으면 넌지시 언급해.\n"
 
-                user_content.append({"type": "text", "text": prompt_text})
-
                 # System prompt with re-anchoring
                 system_prompt = base_system_prompt
                 if api_calls % REANCHOR_EVERY == 0:
@@ -872,49 +929,71 @@ def main() -> None:
 
                 t0 = time.perf_counter()
 
-                # --- Streaming response ---
+                # --- Streaming via provider chain ---
                 dialogue = ""
                 input_tokens = 0
                 output_tokens = 0
                 first_token = True
+                skip_checked = False
 
-                with client.messages.stream(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=max_tokens,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_content}],
-                ) as stream:
-                    skip_checked = False
-                    for event in stream:
-                        if hasattr(event, 'type'):
-                            if event.type == 'content_block_delta' and hasattr(event, 'delta'):
-                                chunk = getattr(event.delta, 'text', '')
-                                if chunk:
-                                    dialogue += chunk
-                                    # Buffer first chars to check for [SKIP]
-                                    if not skip_checked and len(dialogue) >= 6:
-                                        skip_checked = True
-                                        if dialogue.strip().startswith("[SKIP"):
-                                            continue  # Don't stream [SKIP] to frontend
-                                    if skip_checked and not dialogue.strip().startswith("[SKIP"):
-                                        if first_token:
-                                            first_token = False
-                                            broadcast({"type": "stream_start"})
-                                        broadcast({"type": "stream_chunk", "text": chunk})
-                                    elif not skip_checked:
-                                        pass  # Still buffering
-                            elif event.type == 'message_start' and hasattr(event, 'message'):
-                                usage = getattr(event.message, 'usage', None)
-                                if usage:
-                                    input_tokens = getattr(usage, 'input_tokens', 0)
-                            elif event.type == 'message_delta':
-                                usage = getattr(event, 'usage', None)
-                                if usage:
-                                    output_tokens = getattr(usage, 'output_tokens', 0)
+                try:
+                    gen, active_provider = provider_chain.stream(
+                        image_b64=img_b64,
+                        prompt=prompt_text,
+                        system_prompt=system_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+
+                    try:
+                        while True:
+                            chunk = next(gen)
+                            if isinstance(chunk, str) and chunk:
+                                dialogue += chunk
+                                # Buffer first chars to check for [SKIP]
+                                if not skip_checked and len(dialogue) >= 6:
+                                    skip_checked = True
+                                    if dialogue.strip().startswith("[SKIP"):
+                                        continue  # Don't stream [SKIP] to frontend
+                                if skip_checked and not dialogue.strip().startswith("[SKIP"):
+                                    if first_token:
+                                        first_token = False
+                                        broadcast({"type": "stream_start"})
+                                    broadcast({"type": "stream_chunk", "text": chunk})
+                                elif not skip_checked:
+                                    pass  # Still buffering
+                    except StopIteration as e:
+                        ai_response = e.value  # AIResponse from generator return
+                        if ai_response:
+                            input_tokens = ai_response.input_tokens
+                            output_tokens = ai_response.output_tokens
+
                     # Flush buffered content if we were still buffering
                     if not skip_checked and dialogue and not dialogue.strip().startswith("[SKIP"):
                         broadcast({"type": "stream_start"})
                         broadcast({"type": "stream_chunk", "text": dialogue})
+
+                except Exception as provider_err:
+                    # Try fallback via non-streaming query
+                    log.warning("Streaming provider failed: %s, trying fallback query", provider_err)
+                    try:
+                        result = provider_chain.query(
+                            image_b64=img_b64,
+                            prompt=prompt_text,
+                            system_prompt=system_prompt,
+                            max_tokens=max_tokens,
+                            temperature=temperature,
+                        )
+                        if result.error:
+                            raise Exception(result.error)
+                        dialogue = result.text
+                        input_tokens = result.input_tokens
+                        output_tokens = result.output_tokens
+                        if dialogue and not dialogue.strip().startswith("[SKIP"):
+                            broadcast({"type": "stream_start"})
+                            broadcast({"type": "stream_chunk", "text": dialogue})
+                    except Exception as fallback_err:
+                        raise fallback_err
 
                 dialogue = dialogue.strip()
                 elapsed_ms = (time.perf_counter() - t0) * 1000
@@ -1003,6 +1082,19 @@ def main() -> None:
                     },
                 })
 
+                # Record session data
+                if recorder:
+                    recorder.record_stream_start()
+                    recorder.record_stream_chunk(dialogue)
+                    recorder.record_response(
+                        text=dialogue, mood=detect_mood(dialogue),
+                        face=pick_face(dialogue),
+                        elapsed_ms=round(elapsed_ms),
+                        cycle=cycle, event_label=signal.label,
+                        event_score=signal.score, mode=mode.value,
+                        cost_estimate=cost_str,
+                    )
+
                 # TTS voice output (after full text is ready)
                 if tts and dialogue:
                     emotion = personality.state.emotions.dominant()
@@ -1035,7 +1127,8 @@ def main() -> None:
                 broadcast({"type": "error", "code": "connection",
                            "text": "API 연결 오류 — 네트워크를 확인해주세요" if args.locale == "ko" else "API connection error — check network"})
             except Exception as ex:
-                log.error("[c%d] Unexpected error: %s", cycle, ex)
+                provider_name = getattr(provider_chain, 'current', None) and provider_chain.current.name or 'unknown'
+                log.error("[c%d] API error (%s): %s", cycle, provider_name, ex)
                 broadcast({"type": "error", "code": "unknown",
                            "text": "오류 발생 — 잠시 후 재시도" if args.locale == "ko" else "Error occurred — retrying shortly"})
 
@@ -1048,6 +1141,11 @@ def main() -> None:
         memory.update_session(f"Played {args.game}, {api_calls} reactions")
         memory.save()
         log.info("Companion memory saved")
+
+        # Save session recording
+        if recorder:
+            session_path = recorder.stop()
+            log.info("Session recording saved: %s", session_path)
 
     # Start AI loop in background thread (SSE ping=15 handles keepalive)
     thread = threading.Thread(target=ai_loop, daemon=True)
