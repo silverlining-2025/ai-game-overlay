@@ -128,7 +128,7 @@ async fn start_companion(
     .resizable(false)
     .shadow(false)
     .inner_size(620.0, 320.0)
-    .position(40.0, 40.0)
+    .position(1260.0, 720.0)  // Bottom-right area (avoids HUD conflicts)
     .build()
     .map_err(|e| e.to_string())?;
 
