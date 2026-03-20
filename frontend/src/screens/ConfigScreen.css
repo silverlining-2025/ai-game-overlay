@@ -308,3 +308,60 @@
   margin: 4px 0 0 0;
   font-size: 11px;
 }
+
+.api-mode-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: #1a1a35;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.mode-btn.active {
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: white;
+  font-weight: 600;
+}
+
+.managed-features {
+  background: rgba(109, 40, 217, 0.1);
+  border: 1px solid rgba(109, 40, 217, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.managed-tagline {
+  font-size: 14px;
+  color: #c084fc;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.managed-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.managed-list li {
+  padding: 4px 0;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.managed-list li::before {
+  content: "\2713  ";
+  color: #22c55e;
+}

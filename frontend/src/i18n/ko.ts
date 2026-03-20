@@ -87,6 +87,13 @@ const ko = {
   "config.api_key_help": "API 키는 로컬에만 저장됩니다. 서버로 전송되지 않습니다.",
   "config.need_key": "API 키를 입력해주세요",
   "config.cost_free": "Gemini 무료 티어 사용 중 — 하루 1,000회 무료 (비용 $0)",
+  "config.mode_managed": "간편 모드 (프리미엄)",
+  "config.mode_byok": "직접 설정 (무료 가능)",
+  "config.managed_tagline": "가입하고 바로 시작 — API 키 설정 필요 없음",
+  "config.managed_feature_1": "설정 제로 — 로그인하면 바로 플레이",
+  "config.managed_feature_2": "보스전에서 최고급 AI (Claude) 자동 활성화",
+  "config.managed_feature_3": "무제한 반응 + 음성 출력",
+  "config.managed_feature_4": "세션 요약 리포트",
 
   // 동의 화면
   "consent.title": "개인정보 처리 안내",

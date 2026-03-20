@@ -67,6 +67,9 @@ export default function ConfigScreen({ onStart }: Props) {
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
   const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem("openai_api_key") || "");
 
+  // API mode state
+  const [apiMode, setApiMode] = useState<"managed" | "byok">(() => localStorage.getItem("api_mode") as "managed" | "byok" || "managed");
+
   // License key state
   const [licenseKey, setLicenseKey] = useState("");
   const [licenseActivated, setLicenseActivated] = useState(false);
@@ -93,6 +96,7 @@ export default function ConfigScreen({ onStart }: Props) {
 
   useEffect(() => { localStorage.setItem("gemini_api_key", geminiKey); }, [geminiKey]);
   useEffect(() => { localStorage.setItem("openai_api_key", openaiKey); }, [openaiKey]);
+  useEffect(() => { localStorage.setItem("api_mode", apiMode); }, [apiMode]);
 
   const handleTestApiKey = async () => {
     if (!apiKey.trim()) return;
@@ -144,8 +148,12 @@ export default function ConfigScreen({ onStart }: Props) {
         ? t("config.chattiness_normal")
         : t("config.chattiness_talkative");
 
-  const hasAnyKey = !!(geminiKey.trim() || apiKey.trim() || openaiKey.trim());
-  const currentTier = licenseActivated ? "pro" : "free";
+  const hasAnyKey = apiMode === "managed"
+    ? licenseActivated
+    : !!(geminiKey.trim() || apiKey.trim() || openaiKey.trim());
+  const currentTier = apiMode === "managed"
+    ? (licenseActivated ? "pro" : "free")
+    : (licenseActivated ? "basic" : "free");
 
   const handleStart = async () => {
     if (!hasAnyKey) return; // Block start without any API key
@@ -196,91 +204,40 @@ export default function ConfigScreen({ onStart }: Props) {
           </select>
         </div>
 
-        {/* Gemini API Key — PRIMARY (free tier) */}
+        {/* API Mode Toggle */}
         <div className="config-section">
-          <label className="config-label">{t("config.gemini_key_label")}</label>
-          <div className="api-key-row">
-            <input
-              type="password"
-              className="config-input"
-              placeholder={t("config.gemini_key_placeholder")}
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-            />
-          </div>
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="api-key-link"
-          >
-            {t("config.gemini_get_key")}
-          </a>
-        </div>
-
-        {/* Anthropic API Key — optional */}
-        <div className="config-section">
-          <label className="config-label">{t("config.api_key_label")}</label>
-          <div className="api-key-row">
-            <input
-              type={showApiKey ? "text" : "password"}
-              className="config-input"
-              placeholder={t("config.api_key_placeholder")}
-              value={apiKey}
-              onChange={(e) => {
-                setApiKey(e.target.value);
-                setApiKeyStatus("idle");
-                setApiKeyError("");
-              }}
-            />
+          <div className="api-mode-toggle">
             <button
               type="button"
-              className="btn-toggle-vis"
-              onClick={() => setShowApiKey(!showApiKey)}
+              className={`mode-btn ${apiMode === "managed" ? "active" : ""}`}
+              onClick={() => setApiMode("managed")}
             >
-              {showApiKey ? "Hide" : "Show"}
+              {t("config.mode_managed")}
             </button>
             <button
               type="button"
-              className="btn-test-key"
-              onClick={handleTestApiKey}
-              disabled={!apiKey.trim() || apiKeyStatus === "testing"}
+              className={`mode-btn ${apiMode === "byok" ? "active" : ""}`}
+              onClick={() => setApiMode("byok")}
             >
-              {apiKeyStatus === "testing" ? "..." : t("config.test_key")}
+              {t("config.mode_byok")}
             </button>
           </div>
-          {apiKeyStatus === "valid" && (
-            <div className="key-status key-valid">
-              <span className="status-icon">&#x2714;</span> {t("config.key_valid")}
-            </div>
-          )}
-          {apiKeyStatus === "invalid" && (
-            <div className="key-status key-invalid">
-              <span className="status-icon">&#x2718;</span> {t("config.key_invalid")}{apiKeyError ? `: ${apiKeyError}` : ""}
-            </div>
-          )}
         </div>
 
-        {/* OpenAI API Key — optional */}
-        <div className="config-section">
-          <label className="config-label">{t("config.openai_key_label")}</label>
-          <div className="api-key-row">
-            <input
-              type="password"
-              className="config-input"
-              placeholder={t("config.openai_key_placeholder")}
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-            />
+        {/* Managed mode — features + license key */}
+        {apiMode === "managed" && (
+          <div className="config-section managed-features">
+            <p className="managed-tagline">{t("config.managed_tagline")}</p>
+            <ul className="managed-list">
+              <li>{t("config.managed_feature_1")}</li>
+              <li>{t("config.managed_feature_2")}</li>
+              <li>{t("config.managed_feature_3")}</li>
+              <li>{t("config.managed_feature_4")}</li>
+            </ul>
           </div>
-        </div>
+        )}
 
-        <div className="config-section">
-          <p className="config-hint api-priority-text">{t("config.api_priority")}</p>
-          <p className="config-hint api-key-help-text">{t("config.api_key_help")}</p>
-        </div>
-
-        {/* License Key */}
+        {/* License Key — prominent in managed mode, available in both */}
         <div className="config-section">
           <label className="config-label">{t("config.license_label")}</label>
           <div className="api-key-row">
@@ -307,6 +264,95 @@ export default function ConfigScreen({ onStart }: Props) {
             {licenseActivated ? t("config.premium_tier") : t("config.free_tier")}
           </div>
         </div>
+
+        {/* BYOK mode — API key fields */}
+        {apiMode === "byok" && (
+          <>
+            {/* Gemini API Key — PRIMARY (free tier) */}
+            <div className="config-section">
+              <label className="config-label">{t("config.gemini_key_label")}</label>
+              <div className="api-key-row">
+                <input
+                  type="password"
+                  className="config-input"
+                  placeholder={t("config.gemini_key_placeholder")}
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                />
+              </div>
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="api-key-link"
+              >
+                {t("config.gemini_get_key")}
+              </a>
+            </div>
+
+            {/* Anthropic API Key — optional */}
+            <div className="config-section">
+              <label className="config-label">{t("config.api_key_label")}</label>
+              <div className="api-key-row">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  className="config-input"
+                  placeholder={t("config.api_key_placeholder")}
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value);
+                    setApiKeyStatus("idle");
+                    setApiKeyError("");
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-toggle-vis"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? "Hide" : "Show"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-test-key"
+                  onClick={handleTestApiKey}
+                  disabled={!apiKey.trim() || apiKeyStatus === "testing"}
+                >
+                  {apiKeyStatus === "testing" ? "..." : t("config.test_key")}
+                </button>
+              </div>
+              {apiKeyStatus === "valid" && (
+                <div className="key-status key-valid">
+                  <span className="status-icon">&#x2714;</span> {t("config.key_valid")}
+                </div>
+              )}
+              {apiKeyStatus === "invalid" && (
+                <div className="key-status key-invalid">
+                  <span className="status-icon">&#x2718;</span> {t("config.key_invalid")}{apiKeyError ? `: ${apiKeyError}` : ""}
+                </div>
+              )}
+            </div>
+
+            {/* OpenAI API Key — optional */}
+            <div className="config-section">
+              <label className="config-label">{t("config.openai_key_label")}</label>
+              <div className="api-key-row">
+                <input
+                  type="password"
+                  className="config-input"
+                  placeholder={t("config.openai_key_placeholder")}
+                  value={openaiKey}
+                  onChange={(e) => setOpenaiKey(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="config-section">
+              <p className="config-hint api-priority-text">{t("config.api_priority")}</p>
+              <p className="config-hint api-key-help-text">{t("config.api_key_help")}</p>
+            </div>
+          </>
+        )}
 
         <div className="config-section">
           <label className="config-label">{t("config.character_label")}</label>

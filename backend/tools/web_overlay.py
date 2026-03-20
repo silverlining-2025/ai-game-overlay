@@ -416,8 +416,8 @@ def main() -> None:
     parser.add_argument("--tts", action="store_true", help="Enable voice output (Edge TTS)")
     parser.add_argument("--locale", type=str, default="ko", choices=["ko", "en"],
                         help="UI/prompt language (ko=Korean, en=English)")
-    parser.add_argument("--tier", type=str, default="free", choices=["free", "basic", "pro"],
-                        help="Subscription tier (free=10/day, basic=50/day, pro=unlimited)")
+    parser.add_argument("--tier", type=str, default="free", choices=["free", "basic", "pro", "streamer"],
+                        help="Subscription tier (free=10/day, basic=50/day, pro=unlimited, streamer=premium)")
     parser.add_argument("--max-reactions", type=int, default=0, dest="max_reactions",
                         help="Daily reaction limit override (0=use tier default)")
     parser.add_argument("--max-cost-usd", type=float, default=0, dest="max_cost_usd",
@@ -436,17 +436,31 @@ def main() -> None:
 
     # --- Tier-based defaults ---
     TIER_DEFAULTS = {
-        "free":  {"max_reactions": 10,  "max_cost_usd": 0.50},
-        "basic": {"max_reactions": 50,  "max_cost_usd": 2.00},
-        "pro":   {"max_reactions": 0,   "max_cost_usd": 10.00},  # 0 = unlimited
+        "free":     {"max_reactions": 10,  "max_cost_usd": 0.50,  "mode": "byok",    "characters": ["nozomi"], "tts": False, "quality": "standard"},
+        "basic":    {"max_reactions": 50,  "max_cost_usd": 2.00,  "mode": "byok",    "characters": "all",      "tts": True,  "quality": "standard"},
+        "pro":      {"max_reactions": 0,   "max_cost_usd": 10.00, "mode": "managed",  "characters": "all",      "tts": True,  "quality": "smart"},
+        "streamer": {"max_reactions": 0,   "max_cost_usd": 20.00, "mode": "managed",  "characters": "all",      "tts": True,  "quality": "premium"},
     }
     tier = TIER_DEFAULTS.get(args.tier, TIER_DEFAULTS["free"])
     if args.max_reactions == 0:
         args.max_reactions = tier["max_reactions"]
     if args.max_cost_usd == 0:
         args.max_cost_usd = tier["max_cost_usd"]
-    log.info("Tier=%s: max_reactions=%d, max_cost=$%.2f",
-             args.tier, args.max_reactions, args.max_cost_usd)
+    log.info("Tier=%s: max_reactions=%d, max_cost=$%.2f, quality=%s",
+             args.tier, args.max_reactions, args.max_cost_usd, tier["quality"])
+
+    # --- Character restriction based on tier ---
+    allowed_chars = tier.get("characters", "all")
+    if allowed_chars != "all" and args.character not in allowed_chars:
+        log.info("Tier %s: character '%s' not available, using '%s'",
+                 args.tier, args.character, allowed_chars[0])
+        args.character = allowed_chars[0]
+
+    # --- Managed vs BYOK mode ---
+    if tier["mode"] == "managed":
+        log.info("Managed mode: API calls routed through companion proxy")
+    else:
+        log.info("BYOK mode: API calls use user-provided keys directly")
 
     import anthropic
     import uvicorn
@@ -951,6 +965,28 @@ def main() -> None:
 
                 t0 = time.perf_counter()
 
+                # --- Smart quality routing based on tier ---
+                tier_quality = tier.get("quality", "standard")
+                if tier_quality == "premium":
+                    # Streamer tier: prefer Claude for all calls
+                    preferred = next((p for p in provider_chain.providers if p.name == "claude"), None)
+                    if preferred:
+                        active_provider_override = preferred
+                    else:
+                        active_provider_override = None
+                elif tier_quality == "smart":
+                    # Pro tier: use Claude for complex scenes (boss, major events)
+                    if signal.score >= 0.7 or signal.label in ("scene_change", "major"):
+                        preferred = next((p for p in provider_chain.providers if p.name == "claude"), None)
+                        if preferred:
+                            active_provider_override = preferred
+                        else:
+                            active_provider_override = None
+                    else:
+                        active_provider_override = None
+                else:
+                    active_provider_override = None
+
                 # --- Streaming via provider chain ---
                 dialogue = ""
                 input_tokens = 0
@@ -959,13 +995,33 @@ def main() -> None:
                 skip_checked = False
 
                 try:
-                    gen, active_provider = provider_chain.stream(
-                        image_b64=img_b64,
-                        prompt=prompt_text,
-                        system_prompt=system_prompt,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                    )
+                    if active_provider_override:
+                        try:
+                            gen = active_provider_override.stream(
+                                image_b64=img_b64,
+                                prompt=prompt_text,
+                                system_prompt=system_prompt,
+                                max_tokens=max_tokens,
+                                temperature=temperature,
+                            )
+                            active_provider = active_provider_override
+                        except Exception:
+                            # Fall back to chain if preferred provider fails
+                            gen, active_provider = provider_chain.stream(
+                                image_b64=img_b64,
+                                prompt=prompt_text,
+                                system_prompt=system_prompt,
+                                max_tokens=max_tokens,
+                                temperature=temperature,
+                            )
+                    else:
+                        gen, active_provider = provider_chain.stream(
+                            image_b64=img_b64,
+                            prompt=prompt_text,
+                            system_prompt=system_prompt,
+                            max_tokens=max_tokens,
+                            temperature=temperature,
+                        )
 
                     try:
                         while True:

@@ -82,6 +82,13 @@ const en: Record<TranslationKey, string> = {
   "config.api_key_help": "API keys are stored locally only. Never sent to our servers.",
   "config.need_key": "Enter at least one API key",
   "config.cost_free": "Using Gemini free tier — 1,000 calls/day free ($0 cost)",
+  "config.mode_managed": "Easy Mode (Premium)",
+  "config.mode_byok": "Self Setup (Free option)",
+  "config.managed_tagline": "Sign up and play — no API key setup needed",
+  "config.managed_feature_1": "Zero setup — just sign in and play",
+  "config.managed_feature_2": "Premium AI (Claude) auto-activates for boss fights",
+  "config.managed_feature_3": "Unlimited reactions + voice output",
+  "config.managed_feature_4": "Session summary reports",
 
   // Consent screen
   "consent.title": "Privacy Notice",
