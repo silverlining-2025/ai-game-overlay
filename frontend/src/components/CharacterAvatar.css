@@ -3,7 +3,8 @@
   height: 240px;
   position: relative;
   filter: drop-shadow(0 4px 20px rgba(109, 40, 217, 0.3));
-  transition: transform 0.3s ease;
+  /* No CSS animation — JS handles all transforms via rAF */
+  will-change: transform;
 }
 
 /* ── Crossfade layers ─────────────────────────────────── */
@@ -15,15 +16,17 @@
   height: 100%;
   object-fit: contain;
   object-position: top center;
-  transition: opacity 300ms ease;
+  transition: opacity 200ms ease, filter 200ms ease;
 }
 
 .crossfade-visible {
   opacity: 1;
+  filter: blur(0);
 }
 
 .crossfade-hidden {
   opacity: 0;
+  filter: blur(1px);
 }
 
 /* ── Eye blink (CSS squint illusion) ──────────────────── */
@@ -40,85 +43,11 @@
   }
 }
 
-/* ── Idle breathing animation ─────────────────────────── */
-.avatar-sprite.idle {
-  animation: idle-breathe 3.5s ease-in-out infinite;
-}
-
-@keyframes idle-breathe {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2.5px); }
-}
-
-/* ── Speaking — subtle fast bounce ────────────────────── */
+/* ── Speaking glow pulse ──────────────────────────────── */
 .avatar-sprite.speaking {
-  animation: speak-bounce 0.4s ease infinite;
+  filter: drop-shadow(0 4px 20px rgba(109, 40, 217, 0.3))
+          drop-shadow(0 0 8px rgba(192, 132, 252, 0.25));
 }
-
-@keyframes speak-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-1.5px); }
-}
-
-/* ── Mood-specific animations ─────────────────────────── */
-
-/* Excited: faster bounce with slight scale */
-.mood-excited.idle {
-  animation: excited-bounce 0.5s ease infinite;
-}
-
-@keyframes excited-bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-6px) scale(1.03); }
-}
-
-.mood-excited.speaking {
-  animation: excited-bounce-speak 0.35s ease infinite;
-}
-
-@keyframes excited-bounce-speak {
-  0%, 100% { transform: translateY(0) scale(1.01); }
-  50% { transform: translateY(-4px) scale(1.03); }
-}
-
-/* Worried: slow gentle horizontal sway */
-.mood-worried.idle {
-  animation: worried-sway 3s ease-in-out infinite;
-}
-
-@keyframes worried-sway {
-  0%, 100% { transform: translateX(0) translateY(0); }
-  25% { transform: translateX(-1.5px) translateY(-1px); }
-  50% { transform: translateX(0) translateY(0); }
-  75% { transform: translateX(1.5px) translateY(-1px); }
-}
-
-/* Thinking: head tilt with slow return */
-.mood-thinking.idle {
-  animation: thinking-tilt 3s ease-in-out infinite;
-}
-
-@keyframes thinking-tilt {
-  0%, 100% { transform: rotate(0deg) translateY(0); }
-  30% { transform: rotate(3deg) translateY(-1px); }
-  70% { transform: rotate(3deg) translateY(-1px); }
-}
-
-/* Amused: quick double-bounce */
-.mood-amused.idle {
-  animation: amused-double-bounce 1.2s ease infinite;
-}
-
-@keyframes amused-double-bounce {
-  0%, 100% { transform: translateY(0); }
-  15% { transform: translateY(-4px); }
-  25% { transform: translateY(0); }
-  35% { transform: translateY(-3px); }
-  45% { transform: translateY(0); }
-  /* Rest of cycle is still */
-}
-
-/* Chill: just breathing (uses default idle-breathe) — no override needed */
 
 /* ── Lottie container ─────────────────────────────────── */
 .lottie-container {
@@ -126,6 +55,44 @@
   height: 100%;
 }
 
+/* ── Lottie mood animations (CSS-based, no JS spring) ── */
+.mood-excited.idle {
+  animation: lottie-bounce 0.5s ease infinite;
+}
+@keyframes lottie-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.03); }
+}
+
+.mood-worried.idle {
+  animation: lottie-sway 3s ease-in-out infinite;
+}
+@keyframes lottie-sway {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+}
+
+.mood-thinking.idle {
+  animation: lottie-tilt 3s ease-in-out infinite;
+}
+@keyframes lottie-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  30%, 70% { transform: rotate(3deg); }
+}
+
+.mood-amused.idle {
+  animation: lottie-double-bounce 1.2s ease infinite;
+}
+@keyframes lottie-double-bounce {
+  0%, 100% { transform: translateY(0); }
+  15% { transform: translateY(-4px); }
+  25% { transform: translateY(0); }
+  35% { transform: translateY(-3px); }
+  45% { transform: translateY(0); }
+}
+
+/* ── Fallback avatar ──────────────────────────────────── */
 .avatar-fallback {
   width: 100%;
   height: 100%;
