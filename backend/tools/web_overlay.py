@@ -48,11 +48,13 @@ _SHUTDOWN = threading.Event()
 
 def _force_exit(*_args):
     """Graceful shutdown — stops all API calls, then exits."""
+    log.info("Shutting down...")
     _SHUTDOWN.set()
-    # Give threads 1s to clean up, then force exit
-    threading.Timer(1.0, lambda: os._exit(0)).start()
+    # Force exit after 2s — uvicorn's graceful shutdown hangs on SSE connections
+    threading.Timer(2.0, lambda: os._exit(0)).start()
 
 
+# Register signal handlers — these fire on Ctrl+C
 signal.signal(signal.SIGINT, _force_exit)
 signal.signal(signal.SIGTERM, _force_exit)
 atexit.register(lambda: _SHUTDOWN.set())
@@ -1335,12 +1337,18 @@ def main() -> None:
             pass
 
     try:
-        log.info("Starting uvicorn...")
-        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+        log.info("Starting uvicorn (Ctrl+C to stop)...")
+        config = uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="info")
+        server = uvicorn.Server(config)
+        # Disable uvicorn's signal handlers — we use our own _force_exit
+        server.install_signal_handlers = lambda: None
+        server.run()
     except Exception as e:
         log.error("uvicorn failed: %s", e)
         import traceback
         traceback.print_exc()
+    finally:
+        os._exit(0)
 
 
 if __name__ == "__main__":
