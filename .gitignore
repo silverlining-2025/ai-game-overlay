@@ -32,10 +32,11 @@ frontend/src/**/*.js
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment + secrets
 .env
 .env.local
 *.key
+keys/updater.key
 
 # Training data (screenshots + responses)
 training_data/

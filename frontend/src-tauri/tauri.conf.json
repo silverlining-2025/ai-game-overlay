@@ -43,7 +43,7 @@
   "plugins": {
     "updater": {
       "endpoints": ["https://github.com/silverlining-2025/ai-game-overlay/releases/latest/download/latest.json"],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVCMzVCQzYyMzk4OUJGNjUKUldSbHY0azVZcncxVzZpYWJ2N01xQTNqWlE2NGRpNmtJMGc0YlNCQTYxRldLZVc1ZU56M0t5ZWoK"
     }
   }
 }
