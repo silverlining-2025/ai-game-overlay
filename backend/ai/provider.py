@@ -165,7 +165,7 @@ class GeminiProvider(AIProvider):
     """Google Gemini Flash/Flash-Lite via google-genai SDK."""
 
     name = "gemini"
-    model = "gemini-2.5-flash-lite-preview-06-17"
+    model = "gemini-2.5-flash-lite"
     input_cost_per_1m = 0.10
     output_cost_per_1m = 0.40
 
