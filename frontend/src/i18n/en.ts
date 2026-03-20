@@ -89,6 +89,7 @@ const en: Record<TranslationKey, string> = {
   "config.managed_feature_2": "Premium AI (Claude) auto-activates for boss fights",
   "config.managed_feature_3": "Unlimited reactions + voice output",
   "config.managed_feature_4": "Session summary reports",
+  "config.byok_guide": "View full setup guide →",
 
   // Consent screen
   "consent.title": "Privacy Notice",

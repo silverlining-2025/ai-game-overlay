@@ -94,6 +94,7 @@ const ko = {
   "config.managed_feature_2": "보스전에서 최고급 AI (Claude) 자동 활성화",
   "config.managed_feature_3": "무제한 반응 + 음성 출력",
   "config.managed_feature_4": "세션 요약 리포트",
+  "config.byok_guide": "전체 설정 가이드 보기 →",
 
   // 동의 화면
   "consent.title": "개인정보 처리 안내",
