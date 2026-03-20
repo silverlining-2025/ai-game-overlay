@@ -65,7 +65,7 @@ const en: Record<TranslationKey, string> = {
   "config.license_label": "License Key",
   "config.license_placeholder": "Enter license key",
   "config.activate": "Activate",
-  "config.free_tier": "Free tier — 20 reactions/day",
+  "config.free_tier": "Free — 60 reactions/day (~30 min)",
   "config.premium_tier": "Premium — unlimited",
   "config.char_nozomi": "Nozomi",
   "config.char_robot": "Robot",

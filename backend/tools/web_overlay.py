@@ -436,10 +436,10 @@ def main() -> None:
 
     # --- Tier-based defaults ---
     TIER_DEFAULTS = {
-        "free":     {"max_reactions": 10,  "max_cost_usd": 0.50,  "mode": "byok",    "characters": ["nozomi"], "tts": False, "quality": "standard"},
-        "basic":    {"max_reactions": 50,  "max_cost_usd": 2.00,  "mode": "byok",    "characters": "all",      "tts": True,  "quality": "standard"},
-        "pro":      {"max_reactions": 0,   "max_cost_usd": 10.00, "mode": "managed",  "characters": "all",      "tts": True,  "quality": "smart"},
-        "streamer": {"max_reactions": 0,   "max_cost_usd": 20.00, "mode": "managed",  "characters": "all",      "tts": True,  "quality": "premium"},
+        "free":     {"max_reactions": 60,   "max_cost_usd": 1.00,  "mode": "byok",    "characters": ["nozomi"], "tts": False, "quality": "standard"},
+        "basic":    {"max_reactions": 200,  "max_cost_usd": 5.00,  "mode": "byok",    "characters": "all",      "tts": True,  "quality": "standard"},
+        "pro":      {"max_reactions": 0,    "max_cost_usd": 10.00, "mode": "managed",  "characters": "all",      "tts": True,  "quality": "smart"},
+        "streamer": {"max_reactions": 0,    "max_cost_usd": 20.00, "mode": "managed",  "characters": "all",      "tts": True,  "quality": "premium"},
     }
     tier = TIER_DEFAULTS.get(args.tier, TIER_DEFAULTS["free"])
     if args.max_reactions == 0:

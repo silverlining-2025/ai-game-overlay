@@ -70,7 +70,7 @@ const ko = {
   "config.license_label": "라이선스 키",
   "config.license_placeholder": "라이선스 키 입력",
   "config.activate": "활성화",
-  "config.free_tier": "무료 — 하루 20회 반응",
+  "config.free_tier": "무료 — 하루 60회 반응 (~30분)",
   "config.premium_tier": "프리미엄 — 무제한",
   "config.char_nozomi": "노조미",
   "config.char_robot": "로봇",
