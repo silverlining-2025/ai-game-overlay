@@ -1,34 +1,31 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
-title AI Gaming Companion — Setup
+title Setup
 cd /d "%~dp0.."
 
 echo.
 echo  ============================================
-echo   AI Gaming Companion — Environment Setup
+echo  Setup - AI Gaming Companion
 echo  ============================================
 echo.
 
-REM Check Python
-python --version >nul 2>&1
+where python >nul 2>&1
 if errorlevel 1 (
-    echo  [ERROR] Python not found. Install Python 3.11+ from python.org
+    echo  [ERROR] Python not found. Install Python 3.11+
     pause
     exit /b 1
 )
-echo  [OK] Python found
-python --version
+for /f "tokens=*" %%i in ('python --version 2^>^&1') do echo  [OK] %%i
 
-REM Check Node
-node --version >nul 2>&1
+where node >nul 2>&1
 if errorlevel 1 (
     echo  [ERROR] Node.js not found. Install from nodejs.org
     pause
     exit /b 1
 )
-echo  [OK] Node.js found
+for /f "tokens=*" %%i in ('node --version 2^>^&1') do echo  [OK] Node %%i
 
-REM Install Python dependencies
 echo.
 echo  Installing Python dependencies...
 pip install -r backend\requirements.txt -q
@@ -37,46 +34,42 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo  [OK] Python dependencies installed
+echo  [OK] Python deps installed
 
-REM Install frontend dependencies
 echo.
 echo  Installing frontend dependencies...
 cd frontend
-call npm install --silent
+call npm install --silent 2>nul
 if errorlevel 1 (
     echo  [ERROR] npm install failed
     pause
     exit /b 1
 )
 cd ..
-echo  [OK] Frontend dependencies installed
+echo  [OK] Frontend deps installed
 
-REM Run tests
 echo.
 echo  Running tests...
 python -X utf8 -m pytest backend/tests/ -q 2>&1
 if errorlevel 1 (
-    echo  [WARN] Some tests failed — check output above
+    echo  [WARN] Some tests failed
 ) else (
     echo  [OK] All tests passed
 )
 
-REM Clean stale test data
-python -X utf8 -c "import shutil; [shutil.rmtree(f'training_data/{d}', ignore_errors=True) for d in ['_test_game','_test_','_test_pkg_']]" 2>nul
-
 echo.
 echo  ============================================
-echo   Setup complete! Next steps:
+echo  Setup complete!
 echo.
-echo   1. Set your API key:
-echo      set GEMINI_API_KEY=AIza-your-key
-echo      (Get free key: https://aistudio.google.com/apikey)
+echo  Next steps:
+echo    1. Get a free Gemini API key:
+echo       https://aistudio.google.com/apikey
 echo.
-echo   2. Run one of:
-echo      scripts\2_run_backend.bat    (browser overlay)
-echo      scripts\3_run_tauri_dev.bat  (full Tauri app)
-echo      scripts\4_run_tests.bat      (test suite)
+echo    2. Set it:
+echo       set GEMINI_API_KEY=your-key-here
+echo.
+echo    3. Run:
+echo       scripts\2_run_backend.bat
 echo  ============================================
 echo.
 pause

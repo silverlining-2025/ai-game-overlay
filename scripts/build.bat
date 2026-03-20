@@ -1,48 +1,51 @@
 @echo off
-REM ============================================================
-REM Full build: PyInstaller sidecar + Tauri installer
-REM Output: frontend\src-tauri\target\release\bundle\nsis\*.exe
-REM ============================================================
+setlocal
+chcp 65001 >nul 2>&1
+title Build - AI Gaming Companion
+cd /d "%~dp0.."
 
 echo.
-echo ============================================
-echo   AI Gaming Companion — Full Build
-echo ============================================
+echo  ============================================
+echo  Production Build
+echo  ============================================
 echo.
 
-REM Step 1: Build Python sidecar
-echo [1/3] Building Python sidecar (PyInstaller)...
-cd /d "%~dp0..\backend"
+echo  [1/3] PyInstaller sidecar...
+cd backend
 python -m PyInstaller web_overlay.spec --clean --noconfirm
 if errorlevel 1 (
-    echo ERROR: PyInstaller build failed
+    echo  [ERROR] PyInstaller failed
+    pause
     exit /b 1
 )
-echo       Sidecar built: dist\ai-companion\
+cd ..
+echo  [OK] Sidecar built
+echo.
 
-REM Step 2: Build frontend
-echo [2/3] Building frontend (Vite)...
-cd /d "%~dp0..\frontend"
+echo  [2/3] Vite frontend...
+cd frontend
 call npm run build
 if errorlevel 1 (
-    echo ERROR: Vite build failed
+    echo  [ERROR] Vite build failed
+    pause
     exit /b 1
 )
-echo       Frontend built: dist\
+echo  [OK] Frontend built
+echo.
 
-REM Step 3: Build Tauri installer
-echo [3/3] Building Tauri installer...
+echo  [3/3] Tauri installer...
 call npm run tauri build
 if errorlevel 1 (
-    echo ERROR: Tauri build failed
+    echo  [ERROR] Tauri build failed
+    pause
     exit /b 1
 )
+cd ..
 
 echo.
-echo ============================================
-echo   Build complete!
-echo ============================================
+echo  ============================================
+echo  Build complete!
+echo  Installer: frontend\src-tauri\target\release\bundle\nsis\
+echo  ============================================
 echo.
-echo   Installer: frontend\src-tauri\target\release\bundle\nsis\
-echo   Sidecar:   backend\dist\ai-companion\
-echo.
+pause
