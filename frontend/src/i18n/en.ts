@@ -88,6 +88,16 @@ const en: Record<TranslationKey, string> = {
   "consent.safety": "Anti-cheat safe: does not read or modify game memory. Uses OS-level screen capture only.",
   "consent.checkbox_label": "I have reviewed the above and consent to data processing",
   "consent.button": "Agree & Start",
+
+  // Overlay companion
+  "companion.thinking": "Thinking...",
+  "companion.greeting_ko": "Hmm~ starting a game?",
+  "companion.greeting_en": "Hmm~ starting a game?",
+  "companion.error_api": "API connection error",
+  "companion.error_retry": "Retrying shortly",
+  "companion.cost_warning": "Cost warning",
+  "companion.back_to_settings": "Back to settings",
+  "companion.quit": "Quit",
 };
 
 export default en;

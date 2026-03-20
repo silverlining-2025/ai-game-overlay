@@ -410,6 +410,8 @@ def main() -> None:
                         help="UI/prompt language (ko=Korean, en=English)")
     parser.add_argument("--max-reactions", type=int, default=20, dest="max_reactions",
                         help="Daily reaction limit (0=unlimited/premium, default=20)")
+    parser.add_argument("--max-cost-usd", type=float, default=2.0, dest="max_cost_usd",
+                        help="Maximum session cost in USD (0=unlimited, default=2.0)")
     args = parser.parse_args()
 
     import anthropic
@@ -949,6 +951,22 @@ def main() -> None:
                 total_output_tokens += output_tokens
                 cost = (total_input_tokens * 1.0 + total_output_tokens * 5.0) / 1_000_000
                 cost_str = f"{cost:.4f}"
+
+                # Cost ceiling check
+                if args.max_cost_usd > 0:
+                    if cost >= args.max_cost_usd * 0.8 and cost < args.max_cost_usd:
+                        warning_text = f"비용 경고: ${cost:.2f} / ${args.max_cost_usd:.2f}" if args.locale == "ko" else f"Cost warning: ${cost:.2f} / ${args.max_cost_usd:.2f}"
+                        broadcast({"type": "cost_warning", "text": warning_text, "cost": cost, "limit": args.max_cost_usd})
+                        log.warning("Cost at 80%%: $%.4f / $%.2f", cost, args.max_cost_usd)
+                    elif cost >= args.max_cost_usd:
+                        limit_text = f"비용 한도 도달: ${cost:.2f}" if args.locale == "ko" else f"Cost limit reached: ${cost:.2f}"
+                        broadcast({"type": "cost_limit", "text": limit_text})
+                        log.warning("Cost ceiling reached: $%.4f >= $%.2f — stopping API calls", cost, args.max_cost_usd)
+                        # Stop API calls but keep CV running
+                        if _SHUTDOWN.wait(timeout=args.interval):
+                            break
+                        continue
+
                 usage_tracker.record_reaction(input_tokens, output_tokens)
                 memory.increment_reactions()
 
@@ -997,9 +1015,22 @@ def main() -> None:
                 if signal.label not in ("idle", "minor"):
                     event_log.append(signal.label)
 
+            except anthropic.RateLimitError as ex:
+                log.warning("[c%d] Rate limited: %s", cycle, ex)
+                broadcast({"type": "error", "code": "rate_limit",
+                           "text": "API 요청 한도 초과 — 잠시 후 재시도" if args.locale == "ko" else "API rate limited — retrying shortly"})
+            except anthropic.AuthenticationError as ex:
+                log.error("[c%d] Auth error: %s", cycle, ex)
+                broadcast({"type": "error", "code": "auth",
+                           "text": "API 키 오류 — 설정에서 확인해주세요" if args.locale == "ko" else "API key error — check settings"})
+            except (anthropic.APIConnectionError, anthropic.APITimeoutError) as ex:
+                log.warning("[c%d] Connection error: %s", cycle, ex)
+                broadcast({"type": "error", "code": "connection",
+                           "text": "API 연결 오류 — 네트워크를 확인해주세요" if args.locale == "ko" else "API connection error — check network"})
             except Exception as ex:
-                log.error("API error: %s", ex)
-                # Don't show raw errors to user
+                log.error("[c%d] Unexpected error: %s", cycle, ex)
+                broadcast({"type": "error", "code": "unknown",
+                           "text": "오류 발생 — 잠시 후 재시도" if args.locale == "ko" else "Error occurred — retrying shortly"})
 
             # Variable interval based on mode
             wait = 0.5 if mode == ResponseMode.BURST else args.interval

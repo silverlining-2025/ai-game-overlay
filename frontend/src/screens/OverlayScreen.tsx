@@ -4,6 +4,7 @@ import CharacterAvatar from "../components/CharacterAvatar";
 import FeedbackForm from "../components/FeedbackForm";
 import StatsPanel from "../components/StatsPanel";
 import type { SessionStats } from "../components/StatsPanel";
+import { useTranslation } from "../i18n/useTranslation";
 import "./OverlayScreen.css";
 
 // Module-level Tauri imports (avoid dynamic import in hot paths)
@@ -79,6 +80,7 @@ function overlayReducer(state: OverlayState, action: Action): OverlayState {
 }
 
 export default function OverlayScreen({ config }: Props) {
+  const { t } = useTranslation();
   const [state, dispatch] = useReducer(overlayReducer, {
     connected: false,
     isThinking: false,
@@ -260,9 +262,7 @@ export default function OverlayScreen({ config }: Props) {
       es.onopen = () => {
         dispatch({ type: "CONNECTED" });
         // Greeting — character is alive from the start (locale-aware)
-        const savedConfig = localStorage.getItem("companion_config");
-        const locale = savedConfig ? JSON.parse(savedConfig).locale : "ko";
-        const greeting = locale === "en" ? "Hmm~ starting a game?" : "음~ 게임 시작하는 거야?";
+        const greeting = t("companion.greeting_ko");
         if (speechRef.current) speechRef.current.textContent = greeting;
         dispatch({
           type: "RESPONSE",
@@ -387,8 +387,30 @@ export default function OverlayScreen({ config }: Props) {
             payload: { text: data.text, face: "(._. )", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
           });
         } else if (data.type === "error") {
-          // Don't show raw errors to user — just hide the bubble
-          dispatch({ type: "HIDE_BUBBLE" });
+          const errorText = data.text || t("companion.error_api");
+          if (speechRef.current) speechRef.current.textContent = errorText;
+          dispatch({
+            type: "RESPONSE",
+            payload: { text: errorText, face: "(×_×)", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
+          });
+          if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+          bubbleTimer.current = window.setTimeout(() => dispatch({ type: "HIDE_BUBBLE" }), 5000);
+        } else if (data.type === "cost_warning") {
+          const warningText = data.text || t("companion.cost_warning");
+          if (speechRef.current) speechRef.current.textContent = warningText;
+          dispatch({
+            type: "RESPONSE",
+            payload: { text: warningText, face: "(;´Д`)", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
+          });
+          if (bubbleTimer.current) clearTimeout(bubbleTimer.current);
+          bubbleTimer.current = window.setTimeout(() => dispatch({ type: "HIDE_BUBBLE" }), 8000);
+        } else if (data.type === "cost_limit") {
+          const limitText = data.text || t("companion.cost_warning");
+          if (speechRef.current) speechRef.current.textContent = limitText;
+          dispatch({
+            type: "RESPONSE",
+            payload: { text: limitText, face: "(×_×)", mood: "worried", cycle: 0, elapsedMs: 0, costEstimate: "" },
+          });
         }
       };
 
@@ -450,10 +472,10 @@ export default function OverlayScreen({ config }: Props) {
         style={{ cursor: "grab" }}
       >
         <div className="overlay-controls">
-          <button type="button" className="ctrl-btn" onClick={handleStop} title="설정으로 돌아가기">
+          <button type="button" className="ctrl-btn" onClick={handleStop} title={t("companion.back_to_settings")}>
             ⚙
           </button>
-          <button type="button" className="ctrl-btn ctrl-quit" onClick={handleQuit} title="종료">
+          <button type="button" className="ctrl-btn ctrl-quit" onClick={handleQuit} title={t("companion.quit")}>
             ✕
           </button>
         </div>
@@ -469,7 +491,7 @@ export default function OverlayScreen({ config }: Props) {
         {state.showBubble && (
           <div className="speech-bubble">
             {state.isThinking ? (
-              <div className="thinking-text">생각 중...</div>
+              <div className="thinking-text">{t("companion.thinking")}</div>
             ) : (
               <div className="speech-text" ref={speechRef}>
                 {statusText}

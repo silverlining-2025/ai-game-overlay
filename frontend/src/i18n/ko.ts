@@ -93,6 +93,16 @@ const ko = {
   "consent.safety": "안티치트 안전: 게임 메모리를 읽거나 수정하지 않습니다. OS 수준의 화면 캡처만 사용합니다.",
   "consent.checkbox_label": "위 내용을 확인했으며, 데이터 처리에 동의합니다",
   "consent.button": "동의하고 시작",
+
+  // 오버레이 동반자
+  "companion.thinking": "생각 중...",
+  "companion.greeting_ko": "음~ 게임 시작하는 거야?",
+  "companion.greeting_en": "Hmm~ starting a game?",
+  "companion.error_api": "API 연결 오류",
+  "companion.error_retry": "잠시 후 재시도합니다",
+  "companion.cost_warning": "비용 경고",
+  "companion.back_to_settings": "설정으로 돌아가기",
+  "companion.quit": "종료",
 } as const;
 
 export default ko;
