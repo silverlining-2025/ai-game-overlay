@@ -8,35 +8,37 @@ interface Props {
   isSpeaking?: boolean;
 }
 
-// Expression mappings per character — mood + speaking state → image file
-const NOZOMI_EXPRESSIONS: Record<string, string> = {
-  "excited_speaking": "nozomi_casual_happy.webp",
-  "curious_speaking": "nozomi_casual_normaltalk.webp",
-  "worried_speaking": "nozomi_casual_sadtalk1.webp",
-  "chill_speaking": "nozomi_casual_normaltalk.webp",
-  "amused_speaking": "nozomi_casual_normaltalk.webp",
-  "thinking_speaking": "nozomi_casual_normaltalk.webp",
-  "angry_speaking": "nozomi_casual_angrytalk.webp",
-  "sad_speaking": "nozomi_casual_sadtalk2.webp",
-  "excited": "nozomi_casual_happy.webp",
-  "curious": "nozomi_casual_huh.webp",
-  "worried": "nozomi_casual_sad1.webp",
-  "chill": "nozomi_casual_normal.webp",
-  "amused": "nozomi_casual_evilsmirk.webp",
-  "thinking": "nozomi_casual_frown.webp",
-  "angry": "nozomi_casual_angry.webp",
-  "disgusted": "nozomi_casual_disgusted.webp",
-  "blush": "nozomi_casual_blush.webp",
-  "pout": "nozomi_casual_pout.webp",
-  "sad": "nozomi_casual_sad2.webp",
+// Mood → expression file suffix mapping (works for any character with sprites)
+// Naming convention: {character}_{outfit}_{expression}.webp
+const MOOD_TO_EXPRESSION: Record<string, string> = {
+  "excited_speaking": "happy",
+  "curious_speaking": "normaltalk",
+  "worried_speaking": "sadtalk1",
+  "chill_speaking": "normaltalk",
+  "amused_speaking": "normaltalk",
+  "thinking_speaking": "normaltalk",
+  "angry_speaking": "angrytalk",
+  "sad_speaking": "sadtalk2",
+  "excited": "happy",
+  "curious": "huh",
+  "worried": "sad1",
+  "chill": "normal",
+  "amused": "evilsmirk",
+  "thinking": "frown",
+  "angry": "angry",
+  "disgusted": "disgusted",
+  "blush": "blush",
+  "pout": "pout",
+  "sad": "sad2",
 };
 
-// Fallback for non-Nozomi characters — uses Lottie animations
+// Characters that have sprite assets in /characters/<name>/
+// Add a character here once their sprites are generated
+const SPRITE_CHARACTERS = ["nozomi", "keiko"];
+const DEFAULT_OUTFIT = "casual";
+
+// Fallback characters — uses Lottie animations
 const LOTTIE_CHARACTERS = ["robot", "cat", "ghost", "fox", "slime"];
-
-const CHARACTER_DEFAULTS: Record<string, string> = {
-  nozomi: "nozomi_casual_normal.webp",
-};
 
 function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
   // Crossfade state: track current and previous images
@@ -48,26 +50,22 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
   const blinkRef = useRef<HTMLDivElement | null>(null);
   const blinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isNozomi = character === "nozomi";
-  const isLottie = LOTTIE_CHARACTERS.includes(character);
+  const hasSprites = SPRITE_CHARACTERS.includes(character);
+  const isLottie = !hasSprites && LOTTIE_CHARACTERS.includes(character);
 
   // Resolve expression image for current mood + speaking state
   const resolveImage = useCallback(
     (m: string, speaking: boolean): string => {
       const key = speaking ? `${m}_speaking` : m;
-      return (
-        NOZOMI_EXPRESSIONS[key] ||
-        NOZOMI_EXPRESSIONS[m] ||
-        CHARACTER_DEFAULTS.nozomi ||
-        ""
-      );
+      const expression = MOOD_TO_EXPRESSION[key] || MOOD_TO_EXPRESSION[m] || "normal";
+      return `${character}_${DEFAULT_OUTFIT}_${expression}.webp`;
     },
-    [],
+    [character],
   );
 
   // Crossfade when expression changes
   useEffect(() => {
-    if (!isNozomi) return;
+    if (!hasSprites) return;
 
     const nextImg = resolveImage(mood, isSpeaking);
     const currentVisible = showFront ? frontImg : backImg;
@@ -84,18 +82,17 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
       requestAnimationFrame(() => setShowFront(true));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mood, isSpeaking, isNozomi, resolveImage]);
+  }, [mood, isSpeaking, hasSprites, resolveImage]);
 
   // Initialize first image without transition
   useEffect(() => {
-    if (!isNozomi) return;
+    if (!hasSprites) return;
     const img = resolveImage(mood, isSpeaking);
     setFrontImg(img);
     setBackImg(img);
     setShowFront(true);
-    // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNozomi]);
+  }, [hasSprites, character]);
 
   // Eye blink cycle — randomized CSS class toggle
   const scheduleBlink = useCallback(() => {
@@ -119,8 +116,8 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
     };
   }, [scheduleBlink]);
 
-  if (isNozomi) {
-    const defaultSrc = `/characters/nozomi/${CHARACTER_DEFAULTS.nozomi}`;
+  if (hasSprites) {
+    const defaultSrc = `/characters/${character}/${character}_${DEFAULT_OUTFIT}_normal.webp`;
     return (
       <div
         ref={blinkRef}
@@ -128,14 +125,14 @@ function CharacterAvatar({ character, mood, isSpeaking = false }: Props) {
       >
         {/* Back layer */}
         <img
-          src={backImg ? `/characters/nozomi/${backImg}` : defaultSrc}
+          src={backImg ? `/characters/${character}/${backImg}` : defaultSrc}
           alt={mood}
           className={`sprite-img crossfade-layer ${!showFront ? "crossfade-visible" : "crossfade-hidden"}`}
           draggable={false}
         />
         {/* Front layer */}
         <img
-          src={frontImg ? `/characters/nozomi/${frontImg}` : defaultSrc}
+          src={frontImg ? `/characters/${character}/${frontImg}` : defaultSrc}
           alt={mood}
           className={`sprite-img crossfade-layer ${showFront ? "crossfade-visible" : "crossfade-hidden"}`}
           draggable={false}
