@@ -236,3 +236,52 @@ context_en: |
   6. Don't describe UI elements themselves.
 
   Community terms: capture=catching, Paldeck=Pokedex, John Wick meta=direct combat, knockoff=Pokemon meme, condenser=condensation, endgame Pal=best Pal, 4-star=full condensation
+
+# Game knowledge for strategic advice (injected when companion should help)
+knowledge_ko:
+  capture:
+    - "HP 낮출수록 포획 확률 상승. 뒤치기 시 Back Bonus +20%"
+    - "스피어 등급: 팰스피어 < 메가 < 기가 < 하이퍼 < 울트라 < 레전드"
+    - "팰 레벨이 높을수록 포획 어려움. 같은 스피어라도 레벨 차이가 큼"
+    - "보스급 팰은 울트라 이상 + HP 10% 이하에서 시도"
+  combat:
+    - "속성 상성: 불>얼음/풀, 물>불, 전기>물, 얼음>용, 용>어둠, 어둠>무"
+    - "파티 팰 5마리 속성을 다양하게 구성하면 보스전 유리"
+    - "HP 30% 이하면 회복 아이템 추천. 사망 시 경험치/아이템 드랍 위험"
+    - "보스전 타이머 10분 — 시간 관리 중요"
+  base:
+    - "거점에 팰 배치 시 적성(Work Suitability) 확인. 불 팰 = 제련, 물 팰 = 물주기"
+    - "거점 레벨 올리면 배치 가능한 팰 수 증가"
+    - "음식 관리 중요 — 팰이 굶으면 작업 효율 급감"
+  breeding:
+    - "교배 농장에 케이크 필요 (밀가루+꿀+계란+우유+딸기)"
+    - "교배력(Breeding Power) 수치로 결과 결정. 낮은 조합 = 레어 결과"
+    - "전설 팰(제트래곤, 파라핀 등)은 같은 종끼리만 교배 가능"
+  progression:
+    - "테크트리 우선: 팰스피어 → 도구 → 거점 시설 → 탈것 순서"
+    - "레벨업 시 스탯포인트: 초반엔 체력+무게 위주"
+    - "파스트트래블 포인트 찾으면 반드시 활성화"
+
+knowledge_en:
+  capture:
+    - "Lower HP = higher capture rate. Back Bonus gives +20% when thrown from behind"
+    - "Sphere tiers: Pal Sphere < Mega < Giga < Hyper < Ultra < Legendary"
+    - "Higher Pal level = harder to capture. Same sphere, huge level difference"
+    - "Boss-tier Pals need Ultra+ sphere with HP below 10%"
+  combat:
+    - "Type matchups: Fire>Ice/Grass, Water>Fire, Electric>Water, Ice>Dragon, Dragon>Dark, Dark>Neutral"
+    - "Keep 5 party Pals with diverse elements for boss flexibility"
+    - "Below 30% HP, use healing items. Death means XP/item drop risk"
+    - "Boss timer is 10 minutes — manage time carefully"
+  base:
+    - "Match Pal Work Suitability to tasks: Fire=smelting, Water=watering, Grass=planting"
+    - "Higher base level = more Pal slots available"
+    - "Feed management is critical — starving Pals work slower"
+  breeding:
+    - "Breeding Farm needs Cake (flour+honey+eggs+milk+berries)"
+    - "Breeding Power numbers determine offspring. Lower combo = rarer result"
+    - "Legendary Pals (Jetragon, Paladius) can only breed with same species"
+  progression:
+    - "Tech tree priority: Pal Spheres → Tools → Base facilities → Mounts"
+    - "Level-up stats: early game focus HP + Weight capacity"
+    - "Always activate Fast Travel points when you find them"

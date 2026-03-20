@@ -84,3 +84,72 @@ def load_game_context(game: str, locale: str = "ko") -> str:
     if locale == "en":
         return data.get("context_en", data.get("context_ko", ""))
     return data.get("context_ko", "")
+
+
+def load_game_knowledge(game: str, locale: str = "ko") -> dict[str, list[str]]:
+    """Load game knowledge tips from YAML. Returns dict of category → tips list."""
+    data = _load_yaml(_DATA_DIR / "games" / f"{game}.yaml")
+    if not data:
+        return {}
+    key = "knowledge_en" if locale == "en" else "knowledge_ko"
+    knowledge = data.get(key, {})
+    if not knowledge:
+        # Fall back to other locale
+        fallback_key = "knowledge_ko" if locale == "en" else "knowledge_en"
+        knowledge = data.get(fallback_key, {})
+    return knowledge if isinstance(knowledge, dict) else {}
+
+
+def get_relevant_tips(game: str, activity: str, locale: str = "ko", max_tips: int = 3) -> str:
+    """Get contextually relevant tips for injection into the AI prompt.
+
+    Args:
+        game: Game identifier (e.g. "palworld")
+        activity: Current activity from session state (combat, capture, build, etc.)
+        locale: Language
+        max_tips: Maximum tips to include
+
+    Returns:
+        Formatted tips string for prompt injection, or empty string.
+    """
+    import random
+    knowledge = load_game_knowledge(game, locale)
+    if not knowledge:
+        return ""
+
+    # Map activities to knowledge categories
+    activity_map = {
+        "combat": ["combat", "capture"],
+        "capture": ["capture"],
+        "build": ["base"],
+        "craft": ["base", "progression"],
+        "gather": ["base", "progression"],
+        "explore": ["progression", "capture"],
+        "menu": ["progression"],
+        "idle": ["progression"],
+        "travel": ["progression"],
+    }
+
+    categories = activity_map.get(activity, ["progression"])
+    tips = []
+    for cat in categories:
+        cat_tips = knowledge.get(cat, [])
+        tips.extend(cat_tips)
+
+    if not tips:
+        # Fall back to any available tips
+        for cat_tips in knowledge.values():
+            tips.extend(cat_tips)
+
+    if not tips:
+        return ""
+
+    # Select random subset
+    selected = random.sample(tips, min(max_tips, len(tips)))
+
+    if locale == "en":
+        header = "[Game Tips — use naturally if relevant]"
+    else:
+        header = "[게임 팁 — 관련 있으면 자연스럽게 활용]"
+
+    return header + "\n" + "\n".join(f"- {tip}" for tip in selected)

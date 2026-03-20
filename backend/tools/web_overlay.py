@@ -820,6 +820,13 @@ def main() -> None:
                 tone_label = "Tone" if args.locale == "en" else "톤"
                 prompt_text += f"\n({tone_label}: {mood_coloring})"
 
+                # Game knowledge tips — contextual advice injection
+                from backend.data.loader import get_relevant_tips
+                activity = session_state.get("activity", "idle")
+                tips = get_relevant_tips(args.game, activity, locale=args.locale, max_tips=2)
+                if tips:
+                    prompt_text += f"\n{tips}"
+
                 # Confidence — low confidence allows uncertainty
                 confidence = config.get("confidence", 0.5)
                 if confidence < 0.4:
