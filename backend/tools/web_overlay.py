@@ -474,6 +474,9 @@ def main() -> None:
     log.info("Usage tracker: max_reactions=%d (%s)",
              args.max_reactions, "unlimited" if args.max_reactions == 0 else f"{args.tier} tier")
 
+    # Shared state between FastAPI endpoints and ai_loop thread
+    shared_state: dict = {"game_db": None, "db_session_id": None}
+
     app = FastAPI()
     # CORS: allow all origins — server only binds to 127.0.0.1 so this is safe
     app.add_middleware(
@@ -512,6 +515,16 @@ def main() -> None:
             with open(feedback_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
             log.info("Feedback saved: cycle=%d rating=%s", entry["cycle"], entry["rating"])
+
+            # Record feedback in game DB
+            if shared_state.get("game_db") and shared_state.get("db_session_id"):
+                shared_state["game_db"].record_feedback(
+                    shared_state["db_session_id"],
+                    entry["cycle"],
+                    1 if entry["rating"] == "up" else -1,
+                    entry.get("text", ""),
+                )
+
             return JSONResponse({"status": "ok"})
         except Exception as e:
             log.error("Feedback save error: %s", e)
@@ -543,6 +556,21 @@ def main() -> None:
     @app.get("/usage")
     async def usage():
         return JSONResponse(usage_tracker.get_usage())
+
+    @app.get("/stats")
+    async def stats():
+        db = shared_state.get("game_db")
+        sid = shared_state.get("db_session_id")
+        if db and sid:
+            return JSONResponse(db.get_session_stats(sid))
+        return JSONResponse({"error": "no active session"})
+
+    @app.get("/lifetime-stats")
+    async def lifetime_stats():
+        db = shared_state.get("game_db")
+        if db:
+            return JSONResponse(db.get_lifetime_stats())
+        return JSONResponse({"error": "no database"})
 
     @app.get("/stream")
     async def stream():
@@ -633,6 +661,14 @@ def main() -> None:
 
         log.info("AI providers: %s", [p.name for p in provider_chain.providers])
 
+        # --- Game memory database (always active — training data) ---
+        from backend.memory.game_db import GameMemoryDB
+        game_db = GameMemoryDB(args.game)
+        db_session_id = game_db.start_session(args.character, args.locale, args.tier)
+        shared_state["game_db"] = game_db
+        shared_state["db_session_id"] = db_session_id
+        log.info("Game DB: session %d started", db_session_id)
+
         # --- Companion memory (tier-gated: basic+ only) ---
         from backend.memory.companion_memory import CompanionMemory
         if args.tier in ("basic", "pro", "streamer"):
@@ -720,6 +756,8 @@ def main() -> None:
         log.info("Pipeline ready")
         time.sleep(1)
 
+        session_start_time = time.time()
+
         while not _SHUTDOWN.is_set():
             frame = cap.grab()
             if frame is not None:
@@ -733,6 +771,18 @@ def main() -> None:
 
             # --- Layer 1: Local CV event detection (~3ms, free) ---
             signal = detector.analyze(frame)
+
+            # Record CV event in game DB
+            ts_offset = time.time() - session_start_time
+            game_db.record_cv_event(db_session_id, ts_offset, {
+                "label": signal.label, "score": signal.score,
+                "motion_pct": signal.motion_pct,
+                "motion_center": getattr(signal, 'motion_center', 0),
+                "motion_edges": getattr(signal, 'motion_edges', 0),
+                "brightness": getattr(signal, 'brightness', 0),
+                "scene_change": signal.scene_change,
+                "menu_likely": getattr(signal, 'menu_likely', False),
+            })
 
             # --- Layer 1.5: Optional CLIP scene classification (~50ms) ---
             clip_label = ""
@@ -1093,6 +1143,16 @@ def main() -> None:
                 # Extract and strip [STATE: ...] from response, update session state
                 dialogue = _parse_and_strip_state(dialogue, session_state)
 
+                # Record state snapshot in game DB
+                if session_state.get("location") or session_state.get("activity"):
+                    game_db.record_state_snapshot(
+                        db_session_id, time.time() - session_start_time,
+                        location=session_state.get("location", ""),
+                        activity=session_state.get("activity", ""),
+                        quest=session_state.get("active_quest", ""),
+                        mood_trend=session_state.get("mood_trend", ""),
+                    )
+
                 # Calculate cost using the provider that actually served this request
                 used_provider = active_provider or provider_chain.current
                 call_cost = used_provider._calc_cost(input_tokens, output_tokens)
@@ -1167,6 +1227,18 @@ def main() -> None:
                     },
                 })
 
+                # Record in game DB
+                game_db.record_response(
+                    session_id=db_session_id,
+                    ts_offset=time.time() - session_start_time,
+                    cycle=cycle, text=dialogue, mood=detect_mood(dialogue),
+                    face=pick_face(dialogue), mode=mode.value,
+                    event_label=signal.label, event_score=signal.score,
+                    provider=provider_name, model=getattr(used_provider, 'model', ''),
+                    input_tokens=input_tokens, output_tokens=output_tokens,
+                    cost_usd=call_cost, elapsed_ms=elapsed_ms,
+                )
+
                 # Record session data
                 if recorder:
                     recorder.record_stream_start()
@@ -1227,6 +1299,20 @@ def main() -> None:
             memory.update_session(f"Played {args.game}, {api_calls} reactions")
             memory.save()
             log.info("Companion memory saved")
+
+        # Save behavior tracker to game DB
+        game_db.save_behavior(db_session_id, {
+            "death_count": tracker.death_count,
+            "playstyle": tracker.get_playstyle(),
+            "activity_time": json.dumps(tracker.activity_time),
+        })
+
+        # End session in game DB
+        game_db.end_session(db_session_id,
+                           summary=f"Played {args.game}, {api_calls} reactions",
+                           playstyle=tracker.get_playstyle())
+        game_db.close()
+        log.info("Game DB: session %d ended", db_session_id)
 
         # Save session recording
         if recorder:
