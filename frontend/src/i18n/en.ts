@@ -1,38 +1,6 @@
 import type { TranslationKey } from "./ko";
 
 const en: Record<TranslationKey, string> = {
-  "status.connected": "Connected",
-  "status.disconnected": "Disconnected",
-  "status.reconnecting": "Reconnecting...",
-
-  "overlay.coach_title": "AI Coach",
-  "overlay.stats_title": "Match Stats",
-  "overlay.timer": "Elapsed Time",
-
-  "coach.thinking": "Analyzing...",
-  "coach.no_suggestion": "No suggestions yet",
-  "coach.error": "Cannot connect to coach service",
-
-  "controls.toggle_overlay": "Toggle Overlay (Alt+O)",
-  "controls.toggle_clickthrough": "Toggle Click-Through (Alt+T)",
-  "controls.request_advice": "Request Advice (Alt+C)",
-
-  "settings.language": "Language",
-  "settings.opacity": "Opacity",
-  "settings.position": "Position",
-
-  "minesweeper.safe_cell": "Safe",
-  "minesweeper.mine_cell": "Mine",
-  "minesweeper.confidence": "Confidence: {{value}}%",
-  "minesweeper.game_status": "Game Status: {{status}}",
-  "minesweeper.mines_remaining": "Mines Remaining: {{count}}",
-  "minesweeper.analyzing_grid": "Analyzing grid...",
-  "minesweeper.no_grid": "Grid not detected",
-
-  "perf.fps": "{{value}} FPS",
-  "perf.capture_ms": "Capture: {{value}}ms",
-  "perf.processing_ms": "Process: {{value}}ms",
-
   // Config screen
   "config.title": "AI Gaming Companion",
   "config.subtitle": "An AI friend that reacts in real-time while watching your game",
@@ -98,7 +66,7 @@ const en: Record<TranslationKey, string> = {
   "consent.item_capture_label": "Screen Capture",
   "consent.item_capture_desc": "Game screen is captured and sent to AI for analysis",
   "consent.item_transfer_label": "Data Transfer",
-  "consent.item_transfer_desc": "Captured images are sent to Anthropic API (US) for analysis",
+  "consent.item_transfer_desc": "Captured images are sent to AI providers (Gemini/Claude/OpenAI) for analysis",
   "consent.item_storage_label": "Data Storage",
   "consent.item_storage_desc": "Images are not stored on servers (deleted immediately after analysis)",
   "consent.item_training_label": "Training Data",
@@ -118,6 +86,26 @@ const en: Record<TranslationKey, string> = {
   "companion.quit": "Quit",
   "companion.upgrade_cta": "Upgrade to Premium →",
   "companion.limit_upgrade": "Want unlimited reactions? Upgrade to Premium",
+
+  // Feedback
+  "feedback.thanks": "Thanks!",
+  "feedback.placeholder": "Enter your feedback...",
+  "feedback.thumbs_up": "Good",
+  "feedback.thumbs_down": "Bad",
+
+  // Stats panel
+  "stats.title": "Session Stats",
+  "stats.time": "Time",
+  "stats.reactions": "Reactions",
+  "stats.burst": "Burst",
+  "stats.react": "React",
+  "stats.chat": "Chat",
+  "stats.api_calls": "API Calls",
+  "stats.cost": "Est. Cost",
+  "stats.feedback": "Feedback",
+  "stats.up": "Up",
+  "stats.down": "Down",
+  "stats.events": "Events Detected",
 
   // Tutorial
   "tutorial.slide1_title": "Meet Your AI Companion",

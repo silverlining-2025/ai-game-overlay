@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "../i18n/useTranslation";
 import "./FeedbackForm.css";
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function FeedbackForm({ onClose, game, character }: Props) {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,13 +83,13 @@ export default function FeedbackForm({ onClose, game, character }: Props) {
   return (
     <div className="feedback-overlay" ref={containerRef}>
       {submitted ? (
-        <div className="feedback-confirm">감사합니다!</div>
+        <div className="feedback-confirm">{t("feedback.thanks")}</div>
       ) : (
         <input
           ref={inputRef}
           className="feedback-input"
           type="text"
-          placeholder="피드백을 입력하세요..."
+          placeholder={t("feedback.placeholder")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}

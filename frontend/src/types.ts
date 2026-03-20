@@ -5,6 +5,8 @@ export interface AppConfig {
   position: "top-right" | "top-left" | "bottom-right" | "bottom-left";
   chattiness: number;
   locale: "ko" | "en";
+  tier?: "free" | "basic" | "pro" | "streamer";
+  apiMode?: "managed" | "byok";
 }
 
 export interface CompanionReaction {

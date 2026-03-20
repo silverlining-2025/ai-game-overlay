@@ -1,43 +1,4 @@
 const ko = {
-  // 상태
-  "status.connected": "연결됨",
-  "status.disconnected": "연결 끊김",
-  "status.reconnecting": "재연결 중...",
-
-  // 오버레이
-  "overlay.coach_title": "AI 코치",
-  "overlay.stats_title": "경기 통계",
-  "overlay.timer": "경과 시간",
-
-  // 코치
-  "coach.thinking": "분석 중...",
-  "coach.no_suggestion": "아직 제안이 없습니다",
-  "coach.error": "코치 서비스에 연결할 수 없습니다",
-
-  // 조작
-  "controls.toggle_overlay": "오버레이 표시/숨기기 (Alt+O)",
-  "controls.toggle_clickthrough": "클릭 통과 전환 (Alt+T)",
-  "controls.request_advice": "코치 조언 요청 (Alt+C)",
-
-  // 설정
-  "settings.language": "언어",
-  "settings.opacity": "투명도",
-  "settings.position": "위치",
-
-  // 지뢰찾기
-  "minesweeper.safe_cell": "안전",
-  "minesweeper.mine_cell": "지뢰",
-  "minesweeper.confidence": "신뢰도: {{value}}%",
-  "minesweeper.game_status": "게임 상태: {{status}}",
-  "minesweeper.mines_remaining": "남은 지뢰: {{count}}개",
-  "minesweeper.analyzing_grid": "그리드 분석 중...",
-  "minesweeper.no_grid": "그리드를 찾을 수 없습니다",
-
-  // 성능
-  "perf.fps": "{{value}} FPS",
-  "perf.capture_ms": "캡처: {{value}}ms",
-  "perf.processing_ms": "처리: {{value}}ms",
-
   // 설정 화면
   "config.title": "AI Gaming Companion",
   "config.subtitle": "게임 화면을 보면서 실시간으로 반응하는 AI 친구",
@@ -103,7 +64,7 @@ const ko = {
   "consent.item_capture_label": "화면 캡처",
   "consent.item_capture_desc": "게임 화면을 캡처하여 AI에게 전송합니다",
   "consent.item_transfer_label": "데이터 전송",
-  "consent.item_transfer_desc": "캡처된 이미지는 Anthropic API(미국)로 전송되어 분석됩니다",
+  "consent.item_transfer_desc": "캡처된 이미지는 AI API (Gemini/Claude/OpenAI)로 전송되어 분석됩니다",
   "consent.item_storage_label": "데이터 저장",
   "consent.item_storage_desc": "이미지는 서버에 저장되지 않습니다 (분석 후 즉시 삭제)",
   "consent.item_training_label": "학습 데이터",
@@ -123,6 +84,26 @@ const ko = {
   "companion.quit": "종료",
   "companion.upgrade_cta": "프리미엄으로 업그레이드 →",
   "companion.limit_upgrade": "무제한 반응을 원하시면 프리미엄으로 업그레이드하세요",
+
+  // 피드백
+  "feedback.thanks": "감사합니다!",
+  "feedback.placeholder": "피드백을 입력하세요...",
+  "feedback.thumbs_up": "좋아요",
+  "feedback.thumbs_down": "별로예요",
+
+  // 통계 패널
+  "stats.title": "세션 통계",
+  "stats.time": "시간",
+  "stats.reactions": "반응 횟수",
+  "stats.burst": "즉시",
+  "stats.react": "반응",
+  "stats.chat": "대화",
+  "stats.api_calls": "API 호출",
+  "stats.cost": "예상 비용",
+  "stats.feedback": "피드백",
+  "stats.up": "좋아요",
+  "stats.down": "별로예요",
+  "stats.events": "감지된 이벤트",
 
   // 튜토리얼
   "tutorial.slide1_title": "AI 컴패니언을 만나보세요",

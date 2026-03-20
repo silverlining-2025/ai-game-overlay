@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "../i18n/useTranslation";
 import "./StatsPanel.css";
 
 export interface SessionStats {
@@ -27,6 +28,7 @@ function formatDuration(ms: number): string {
 }
 
 export default function StatsPanel({ visible, stats }: Props) {
+  const { t } = useTranslation();
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -44,49 +46,49 @@ export default function StatsPanel({ visible, stats }: Props) {
 
   return (
     <div className="stats-panel">
-      <div className="stats-header">세션 통계</div>
+      <div className="stats-header">{t("stats.title")}</div>
 
       <div className="stats-row">
-        <span className="stats-label">시간</span>
+        <span className="stats-label">{t("stats.time")}</span>
         <span className="stats-value">{formatDuration(elapsed)}</span>
       </div>
 
       <div className="stats-row">
-        <span className="stats-label">반응 횟수</span>
+        <span className="stats-label">{t("stats.reactions")}</span>
         <span className="stats-value">{totalReactions}</span>
       </div>
 
       {totalReactions > 0 && (
         <div className="stats-sub">
-          {stats.reactionCount.burst > 0 && <span>즉시: {stats.reactionCount.burst}</span>}
-          {stats.reactionCount.react > 0 && <span>반응: {stats.reactionCount.react}</span>}
-          {stats.reactionCount.chat > 0 && <span>대화: {stats.reactionCount.chat}</span>}
+          {stats.reactionCount.burst > 0 && <span>{t("stats.burst")}: {stats.reactionCount.burst}</span>}
+          {stats.reactionCount.react > 0 && <span>{t("stats.react")}: {stats.reactionCount.react}</span>}
+          {stats.reactionCount.chat > 0 && <span>{t("stats.chat")}: {stats.reactionCount.chat}</span>}
         </div>
       )}
 
       <div className="stats-row">
-        <span className="stats-label">API 호출</span>
+        <span className="stats-label">{t("stats.api_calls")}</span>
         <span className="stats-value">{stats.apiCalls}</span>
       </div>
 
       <div className="stats-row">
-        <span className="stats-label">예상 비용</span>
+        <span className="stats-label">{t("stats.cost")}</span>
         <span className="stats-value stats-cost">${stats.totalCost.toFixed(4)}</span>
       </div>
 
       <div className="stats-row">
-        <span className="stats-label">피드백</span>
+        <span className="stats-label">{t("stats.feedback")}</span>
         <span className="stats-value">
-          <span className="stats-up" title="좋아요">{stats.feedbackUp}</span>
+          <span className="stats-up" title={t("stats.up")}>{stats.feedbackUp}</span>
           {" / "}
-          <span className="stats-down" title="별로예요">{stats.feedbackDown}</span>
+          <span className="stats-down" title={t("stats.down")}>{stats.feedbackDown}</span>
         </span>
       </div>
 
       {eventEntries.length > 0 && (
         <>
           <div className="stats-divider" />
-          <div className="stats-section-label">감지된 이벤트</div>
+          <div className="stats-section-label">{t("stats.events")}</div>
           {eventEntries.map(([event, count]) => (
             <div className="stats-row stats-event-row" key={event}>
               <span className="stats-label">{event}</span>

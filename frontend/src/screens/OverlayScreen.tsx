@@ -509,14 +509,14 @@ export default function OverlayScreen({ config }: Props) {
                   className={`feedback-btn ${feedbackGiven === "up" ? "feedback-selected-up" : ""} ${feedbackGiven === "down" ? "feedback-other" : ""}`}
                   onClick={() => sendFeedback("up")}
                   disabled={feedbackGiven !== null}
-                  title="좋아요"
+                  title={t("feedback.thumbs_up")}
                 >▲</button>
                 <button
                   type="button"
                   className={`feedback-btn ${feedbackGiven === "down" ? "feedback-selected-down" : ""} ${feedbackGiven === "up" ? "feedback-other" : ""}`}
                   onClick={() => sendFeedback("down")}
                   disabled={feedbackGiven !== null}
-                  title="별로에요"
+                  title={t("feedback.thumbs_down")}
                 >▼</button>
               </div>
             )}
